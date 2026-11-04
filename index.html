@@ -14,10 +14,20 @@
       background-color: #0f172a;
       color: #f8fafc;
     }
-    .prose p { margin-bottom: 0.6rem; line-height: 1.65; }
-    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.6rem; list-style-type: disc; }
-    .prose li { margin-bottom: 0.25rem; }
+    .prose p { margin-bottom: 0.6rem; line-height: 1.7; }
+    .prose h3 { font-size: 1rem; font-weight: 700; color: #38bdf8; margin-top: 0.9rem; margin-bottom: 0.45rem; }
+    .prose h4 { font-size: 0.92rem; font-weight: 700; color: #7dd3fc; margin-top: 0.7rem; margin-bottom: 0.35rem; }
+    .prose ul, .prose ol { margin-left: 1.25rem; margin-bottom: 0.65rem; list-style-type: disc; }
+    .prose li { margin-bottom: 0.3rem; line-height: 1.65; }
     .prose strong { color: #38bdf8; font-weight: 700; }
+    .prose blockquote {
+      border-left: 3px solid #38bdf8;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 0.6rem 0.9rem;
+      border-radius: 0.5rem;
+      margin: 0.6rem 0;
+      color: #e2e8f0;
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #1e293b; }
     ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
@@ -28,7 +38,7 @@
   <!-- 모바일 사이드바 배경 오버레이 -->
   <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden"></div>
 
-  <!-- 왼쪽 사이드바 (설정 및 문서 정보) -->
+  <!-- 왼쪽 사이드바 (RAG 설정 및 문서 정보) -->
   <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-80 bg-slate-900 border-r border-slate-800 flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-200">
     <div class="p-4 border-b border-slate-800 flex items-center justify-between">
       <div class="flex items-center gap-2">
@@ -39,36 +49,20 @@
     </div>
 
     <div class="p-4 flex-1 overflow-y-auto space-y-5 text-sm">
-      <!-- API Key 설정 -->
-      <div class="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700">
-        <label class="block font-semibold text-sky-400 mb-1.5">🔑 API Key (Gemini 또는 OpenAI GPT)</label>
-        <div class="flex gap-1.5">
-          <input id="apiKeyInput" type="password" placeholder="AIzaSy... (Gemini) 또는 sk-... (GPT)"
-            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
-            oninput="saveApiKey(this.value)" />
+      <!-- 즉시 사용 가능 상태 배지 -->
+      <div class="bg-emerald-950/50 p-3.5 rounded-xl border border-emerald-700/60">
+        <div class="flex items-center gap-2 font-semibold text-emerald-400 text-xs">
+          <span>✅</span>
+          <span>API 키 입력 없이 즉시 사용 가능</span>
         </div>
-        <p id="apiKeyStatus" class="text-xs text-slate-400 mt-1.5">
-          Gemini(<code>AIza...</code>)와 OpenAI GPT(<code>sk-...</code>) 키를 모두 자동 인식하며, 내 기기(localStorage)에만 보관됩니다.
+        <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+          내장된 <b>한국어 안전매뉴얼 RAG 엔진</b>이 활성화되어 있어 별도의 키 입력 없이 모든 질문에 즉시 답변합니다.
         </p>
       </div>
 
       <!-- 모델 및 RAG 파라미터 -->
       <div class="space-y-3">
-        <h3 class="font-semibold text-slate-300">🤖 모델 및 RAG 파이프라인</h3>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">AI 모델 (키 종류에 맞춰 자동 전환 가능)</label>
-          <select id="modelSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white">
-            <optgroup label="Google Gemini (AIza... 키)">
-              <option value="gemini-2.5-flash" selected>gemini-2.5-flash (권장 · 최신)</option>
-              <option value="gemini-2.0-flash">gemini-2.0-flash (빠름)</option>
-              <option value="gemini-2.5-pro">gemini-2.5-pro (고성능)</option>
-            </optgroup>
-            <optgroup label="OpenAI GPT (sk-... 키)">
-              <option value="gpt-4o-mini">gpt-4o-mini (GPT 가성비 · 빠름)</option>
-              <option value="gpt-4o">gpt-4o (GPT 고성능)</option>
-            </optgroup>
-          </select>
-        </div>
+        <h3 class="font-semibold text-slate-300">🤖 RAG 파이프라인 설정</h3>
 
         <div>
           <label class="block text-xs text-slate-400 mb-1">검색 방식 (Retriever)</label>
@@ -99,11 +93,11 @@
         <h3 class="font-semibold text-slate-300">📚 학습된 안전 매뉴얼 (PDF 2종)</h3>
         <div class="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/70 text-xs space-y-1.5">
           <div class="flex items-start gap-1.5">
-            <span>✅</span>
+            <span>📘</span>
             <span class="text-slate-200 leading-snug">직업계고등학교 실습실 안전관리 간편 매뉴얼.pdf (19쪽)</span>
           </div>
           <div class="flex items-start gap-1.5">
-            <span>✅</span>
+            <span>📗</span>
             <span class="text-slate-200 leading-snug">[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육.pdf (112쪽)</span>
           </div>
           <div id="kbCountBadge" class="pt-1 text-emerald-400 font-semibold">
@@ -111,6 +105,26 @@
           </div>
         </div>
       </div>
+
+      <!-- 선택적 외부 API 키 연결 (접어두기) -->
+      <details class="pt-2 border-t border-slate-800 text-xs">
+        <summary class="cursor-pointer text-slate-400 hover:text-slate-200 font-medium select-none">
+          🔑 고급: 외부 API 키 직접 연결 (선택사항)
+        </summary>
+        <div class="mt-2.5 space-y-2 bg-slate-800/50 p-3 rounded-lg border border-slate-700/60">
+          <input id="apiKeyInput" type="password" placeholder="비워두면 내장 RAG 엔진 자동 사용"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
+            oninput="saveApiKey(this.value)" />
+          <select id="modelSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+            <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            <option value="gpt-4o-mini">gpt-4o-mini (OpenAI)</option>
+          </select>
+          <p id="apiKeyStatus" class="text-[11px] text-slate-400">
+            입력하지 않아도 내장 RAG 요약 엔진으로 즉시 답변합니다.
+          </p>
+        </div>
+      </details>
 
       <button onclick="clearChat()" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
         🗑️ 대화 기록 초기화
@@ -129,13 +143,13 @@
         <div>
           <h1 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
             <span>🦺 실험·실습실 안전관리 AI 챗봇</span>
-            <span class="hidden sm:inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">Advanced RAG</span>
+            <span class="hidden sm:inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">즉시 응답 활성</span>
           </h1>
-          <p class="text-xs text-slate-400">전주대학교 AI융합프로젝트 · LangChain & Gemini 기반 안전 매뉴얼 질의응답</p>
+          <p class="text-xs text-slate-400">전주대학교 AI융합프로젝트 · 실습실 안전관리 매뉴얼 RAG 질의응답 시스템</p>
         </div>
       </div>
-      <button onclick="toggleSidebar()" class="text-xs px-3 py-1.5 rounded-lg bg-sky-600/20 text-sky-300 border border-sky-500/30 hover:bg-sky-600/30">
-        🔑 API 키 / 설정
+      <button onclick="toggleSidebar()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700">
+        ⚙️ RAG 설정
       </button>
     </header>
 
@@ -157,6 +171,14 @@
         <button onclick="askSample('연구실 일상점검, 정기점검, 정밀안전진단의 실시 주기는 어떻게 되나요?')"
           class="text-xs px-3 py-1.5 rounded-full bg-slate-800 hover:bg-sky-900/50 text-slate-200 hover:text-sky-200 border border-slate-700 transition">
           💡 연구실 안전점검·정밀안전진단 주기
+        </button>
+        <button onclick="askSample('화상을 입거나 눈에 화학물질·티가 들어갔을 때 응급처치 방법은?')"
+          class="text-xs px-3 py-1.5 rounded-full bg-slate-800 hover:bg-sky-900/50 text-slate-200 hover:text-sky-200 border border-slate-700 transition">
+          💡 화상 및 눈 세척 응급처치
+        </button>
+        <button onclick="askSample('고압멸균기(오토클레이브)와 가스크로마토그래피(GC) 안전수칙 알려줘')"
+          class="text-xs px-3 py-1.5 rounded-full bg-slate-800 hover:bg-sky-900/50 text-slate-200 hover:text-sky-200 border border-slate-700 transition">
+          💡 고압멸균기·GC 안전수칙
         </button>
       </div>
     </div>
@@ -182,12 +204,55 @@
     const KB = window.SAFETY_KB || [];
     let chatHistory = [];
 
+    // 안전 도메인 동의어 및 Pre-Retrieval Query Rewrite 사전
+    const DOMAIN_REWRITE_RULES = [
+      { keywords: ['ccc', '응급조치', '응급상황', '처리 과정', '처리과정', '사고 발생', '사고발생'],
+        rewrite: '실험·실습실 안전사고 발생 시 응급상황 처리 과정 4단계 및 응급조치 CCC(Check, Call, Care) 행동요령',
+        boostTerms: ['응급조치', 'ccc', 'check', 'call', 'care', '후속조치', '응급상황'] },
+      { keywords: ['면장갑', '밀링', '띠톱', '선반', '절삭', '회전', '말림', '장갑'],
+        rewrite: '선반·밀링·띠톱 등 회전체 기계 작업 시 면장갑 착용 금지 이유(회전말림점 위험) 및 금속 칩 제거 안전수칙',
+        boostTerms: ['면장갑', '밀링', '띠톱', '주축', '회전말림점', '브러시', '칩'] },
+      { keywords: ['황산', '산을 묽힐', '희석', '시약병', '누출', '산이나 알칼리', '화학물질 접촉'],
+        rewrite: '산(황산 등)을 묽히는 올바른 순서(물에 산을 천천히 투입) 및 황산액 시약병 파손·누출 시 20분 이상 세척 대처 방안',
+        boostTerms: ['황산', '묽힐', '진한 산', '누출', '20분 이상', '금수성', '흡착제'] },
+      { keywords: ['일상점검', '정기점검', '특별안전점검', '정밀안전진단', '점검 주기', '점검주기', '실시주기'],
+        rewrite: '연구실안전법상 안전점검(일상점검 매일 1회, 정기점검 매년 1회, 특별안전점검) 및 정밀안전진단(2년마다 1회) 실시 주기',
+        boostTerms: ['일상점검', '정기점검', '특별안전점검', '정밀안전진단', '매일 1회', '매년 1회', '2년마다'] },
+      { keywords: ['화상', '데임', '물집', '뜨거운'],
+        rewrite: '실험·실습실 화상 발생 시 응급처치 요령(15~30분 찬물 냉각, 물집 보존, 옷 위 냉각) 및 화상 예방 안전수칙',
+        boostTerms: ['화상', '15~30분', '물집', '찬물', '오븐', '내열'] },
+      { keywords: ['눈에', '세안기', '눈 세척', '눈세척', '칩이나 티'],
+        rewrite: '눈에 화학물질이나 칩·티가 들어갔을 때 눈 세척기(세안기) 15분 이상 세척 및 응급처치 요령',
+        boostTerms: ['눈 세척기', '세안기', '15분 이상', '눈에 칩이나 티', '귀 쪽에서 눈 쪽'] },
+      { keywords: ['고압멸균기', '오토클레이브', 'autoclave', '가스크로마토', 'gc', '무균실험대', 'clean bench', '클린벤치'],
+        rewrite: '실험실 주요 기기(고압멸균기 Autoclave, 가스크로마토그래피 GC, 무균실험대 Clean bench) 위험요소 및 안전수칙',
+        boostTerms: ['고압멸균기', 'autoclave', '가스크로마토그래피', '무균실험대', '냉각', '수동밸브', 'uv램프'] },
+      { keywords: ['소화기', '화재', '불이야', '119', '전기화재', '전기 화재', '감전'],
+        rewrite: '실험·실습실 화재·폭발 시 대피 및 소화기 사용요령과 감전·전기화재(C급 소화기, 물 분사 금지) 대처 방안',
+        boostTerms: ['화재신고', '소화기', '화재대피', '감전', '절연봉', 'c급 소화기', '물 분사 금지'] },
+      { keywords: ['가스', '아세틸렌', '수소', '산소', '용접', '도색', '색상'],
+        rewrite: '가스 실험·실습실 가연성·독성가스 안전관리, 가스 용기별 도색 색상 및 산소·아세틸렌 용접 안전수칙',
+        boostTerms: ['가연성 가스', '도색의 색상', '아세틸렌', '수소', '산소 밸브', '역화'] },
+      { keywords: ['폐액', '폐기물', '폐시약', '혼합', '스티커', '80%'],
+        rewrite: '실험실 화학물질 폐기물·폐액 분류(산·중성·알칼리·할로겐) 및 안전관리(80% 초과 금지, 혼합 금지)',
+        boostTerms: ['폐액', '폐기물', '할로겐', '80%', '혼합금지', '폐시약'] },
+      { keywords: ['보호구', '마스크', '방진', '방독', '보안경', '고글', '보안면', '안전화', '귀마개', '85'],
+        rewrite: '연구실 주요 안전 보호구(호흡용 방진·방독마스크, 보안경·고글·보안면, 보호장갑, 안전화, 85dB 청력보호구) 착용 기준',
+        boostTerms: ['방독마스크', '방진마스크', '보안경', '보안면', '니트릴', '안전화', '85 db'] },
+      { keywords: ['생물', 'bsl', '등급', '생물안전', '교상', '주사기', '동물'],
+        rewrite: '생물 실험실 안전관리 등급(BSL 1~4등급), 생물안전작업대(BSC) 비교 및 주사기 찔림·동물 교상 응급처치',
+        boostTerms: ['생물안전', 'bsl', 'bsc', '주사기', '동물 교상', '파상풍'] },
+      { keywords: ['교육', '훈련', '신규교육', '정기교육', '건강검진', '보험', '요양급여', '사전유해인자'],
+        rewrite: '연구실안전법상 연구활동종사자 안전교육·훈련 시간, 특수건강검진 주기, 보험가입 보상한도(요양급여 20억원) 및 사전유해인자위험분석',
+        boostTerms: ['신규교육', '정기교육', '특수건강검진', '요양급여', '20억원', '사전유해인자위험분석'] }
+    ];
+
     function initApp() {
       const savedKey = localStorage.getItem('SAFETY_GEMINI_API_KEY') || '';
       const input = document.getElementById('apiKeyInput');
       if (savedKey) {
         input.value = savedKey;
-        updateKeyStatus(true);
+        updateKeyStatus(true, savedKey);
       }
       if (KB.length > 0) {
         document.getElementById('kbCountBadge').innerText = `• 총 117페이지 / ${KB.length}개 청크 색인 완료`;
@@ -199,12 +264,6 @@
       const trimmed = (val || '').trim();
       if (trimmed) {
         localStorage.setItem('SAFETY_GEMINI_API_KEY', trimmed);
-        const sel = document.getElementById('modelSelect');
-        if (trimmed.startsWith('sk-') && !sel.value.startsWith('gpt-')) {
-          sel.value = 'gpt-4o-mini';
-        } else if (trimmed.startsWith('AIza') && sel.value.startsWith('gpt-')) {
-          sel.value = 'gemini-2.5-flash';
-        }
         updateKeyStatus(true, trimmed);
       } else {
         localStorage.removeItem('SAFETY_GEMINI_API_KEY');
@@ -216,9 +275,9 @@
       const el = document.getElementById('apiKeyStatus');
       if (hasKey) {
         const provider = keyVal.startsWith('sk-') ? 'OpenAI GPT' : 'Google Gemini';
-        el.innerHTML = `<span class="text-emerald-400 font-semibold">🔒 ${provider} API 키가 내 브라우저에 안전하게 저장되었습니다.</span>`;
+        el.innerHTML = `<span class="text-emerald-400 font-semibold">🔒 외부 ${provider} API 키가 연결되었습니다.</span>`;
       } else {
-        el.innerHTML = '<span class="text-amber-400">⚠️ Gemini(AIza...) 또는 OpenAI(sk-...) API 키를 입력해 주세요. (키가 없어도 매뉴얼 원문 검색은 즉시 동작합니다)</span>';
+        el.innerHTML = '입력하지 않아도 내장 RAG 요약 엔진으로 즉시 답변합니다.';
       }
     }
 
@@ -235,7 +294,7 @@
       container.innerHTML = '';
       appendMessage('assistant',
         '안녕하세요! **직업계고등학교 실습실 안전관리 간편 매뉴얼**과 **[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육** 문서를 학습한 AI 안전도우미입니다.\n\n' +
-        '궁금한 안전수칙, 보호구 착용 기준, 기기 조작 주의사항, 응급처치 요령 등을 질문해 주세요!'
+        '**API 키 입력 없이** 상단의 💡 추천 질문 버튼을 누르거나 아래 입력창에 궁금한 안전수칙을 바로 질문해 보세요!'
       );
     }
 
@@ -248,7 +307,39 @@
       handleChatSubmit(new Event('submit'));
     }
 
-    // 한국어 키워드 토큰화 및 BM25/MMR 하이브리드 검색
+    // 1단계 [Pre-Retrieval]: 질문 재작성 (Query Rewrite)
+    function rewriteQueryLocal(rawQuery) {
+      const qLower = rawQuery.toLowerCase();
+      let matchedRewrites = [];
+      let boostTerms = [];
+
+      // 이전 대화 맥락 반영 (짧은 후속 질문인 경우 이전 질문 키워드 결합)
+      let contextualQuery = rawQuery;
+      if (rawQuery.length <= 16 && chatHistory.length >= 2) {
+        const prevUser = chatHistory[chatHistory.length - 2]?.content || '';
+        contextualQuery = `${prevUser} ${rawQuery}`;
+      }
+
+      for (const rule of DOMAIN_REWRITE_RULES) {
+        if (rule.keywords.some(k => contextualQuery.toLowerCase().includes(k))) {
+          matchedRewrites.push(rule.rewrite);
+          boostTerms.push(...rule.boostTerms);
+        }
+      }
+
+      if (matchedRewrites.length > 0) {
+        return {
+          rewritten: matchedRewrites[0],
+          searchQuery: `${contextualQuery} ${matchedRewrites.join(' ')} ${boostTerms.join(' ')}`
+        };
+      }
+      return {
+        rewritten: `${rawQuery} 관련 실험·실습실 안전수칙 및 대처요령`,
+        searchQuery: contextualQuery
+      };
+    }
+
+    // 2단계 [Retrieval]: 한국어 형태소/바이그램 + MMR 검색
     function tokenize(text) {
       return (text || '')
         .toLowerCase()
@@ -259,7 +350,6 @@
 
     function retrieveChunks(query, topK = 5, mode = 'mmr') {
       const qTokens = tokenize(query);
-      // 2글자 부분문자열(바이그램) 보강으로 한국어 조사 변화 대응
       const qSubstrings = [];
       for (const tok of qTokens) {
         qSubstrings.push(tok);
@@ -274,13 +364,17 @@
         let score = 0;
         for (const tok of qTokens) {
           if (textLower.includes(tok)) {
-            score += 4.0 + Math.min(tok.length, 6) * 0.5;
+            score += 4.5 + Math.min(tok.length, 6) * 0.6;
           }
         }
         for (const sub of qSubstrings) {
           if (textLower.includes(sub)) {
             score += 1.2;
           }
+        }
+        // 목차만 있는 페이지보다 본문 상세 설명 페이지 우대
+        if (chunk.content.includes('목 차') || chunk.content.includes('CONTENTS')) {
+          score *= 0.45;
         }
         return { chunk, score };
       }).sort((a, b) => b.score - a.score);
@@ -289,7 +383,6 @@
         return scored.slice(0, topK).map(s => s.chunk);
       }
 
-      // MMR (Maximal Marginal Relevance): 관련성 높으면서 중복 페이지/내용 최소화
       const candidates = scored.slice(0, Math.max(20, topK * 4));
       const selected = [];
       while (selected.length < topK && candidates.length > 0) {
@@ -299,8 +392,10 @@
           const cand = candidates[i];
           let penalty = 0;
           for (const sel of selected) {
-            if (sel.file_name === cand.chunk.file_name && Math.abs(sel.page - cand.chunk.page) <= 1) {
-              penalty = Math.max(penalty, 3.0);
+            if (sel.file_name === cand.chunk.file_name && sel.page === cand.chunk.page) {
+              penalty = Math.max(penalty, 6.0);
+            } else if (sel.file_name === cand.chunk.file_name && Math.abs(sel.page - cand.chunk.page) <= 1) {
+              penalty = Math.max(penalty, 2.5);
             }
           }
           const mmrScore = cand.score - penalty;
@@ -314,8 +409,64 @@
       return selected;
     }
 
-    async function callGemini(apiKey, model, systemInstruction, userPrompt) {
-      // OpenAI 키(sk-...)인 경우 OpenAI Chat Completions API 호출
+    // 3단계 [Generation]: API 키 없이도 매뉴얼 청크에서 핵심 문장을 구조화하여 AI 답변을 생성하는 내장 합성 엔진
+    function synthesizeStructuredAnswer(userQuery, retrievedDocs) {
+      if (!retrievedDocs || retrievedDocs.length === 0) {
+        return '질문하신 내용과 일치하는 안전관리 매뉴얼 조항을 찾지 못했습니다. 다른 키워드(예: 화재, 화상, 밀링, 황산, 보호구, 안전점검 등)로 질문해 주세요.';
+      }
+
+      const qTokens = tokenize(userQuery);
+      const topDocs = retrievedDocs.slice(0, 3);
+
+      let sections = [];
+      sections.push(`질문하신 **"${userQuery}"**에 대해 실험·실습실 안전관리 매뉴얼에서 확인된 핵심 지침을 정리해 드립니다.\n`);
+
+      topDocs.forEach((doc, idx) => {
+        const shortName = doc.file_name.includes('직업계고등학교')
+          ? '직업계고등학교 실습실 안전관리 간편 매뉴얼'
+          : '[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육';
+
+        // 첫 줄([파일명 - N쪽]) 제거 후 핵심 줄 정리
+        const rawLines = doc.content
+          .split('\n')
+          .map(l => l.trim())
+          .filter(l => l.length > 1 && !l.startsWith('[') && !/^-?\s*\d+\s*-?$/.test(l) && !l.includes('실습실(장) 안전관리 간편 매뉴얼'));
+
+        // 제목 줄과 세부 항목 분리
+        let heading = rawLines[0] || `핵심 안전수칙 ${idx + 1}`;
+        if (heading.length > 55) {
+          heading = `핵심 안전수칙 및 행동요령 (${shortName} ${doc.page}쪽)`;
+        }
+
+        const bodyLines = rawLines.slice(1).length > 0 ? rawLines.slice(1) : rawLines;
+        const cleanBullets = [];
+
+        for (let line of bodyLines) {
+          line = line.replace(/^[❍▶⁍❖✚✓•\-*]+\s*/, '').trim();
+          if (line.length < 3) continue;
+          // 질문 키워드가 포함된 핵심 문장 강조
+          for (const tok of qTokens) {
+            if (tok.length >= 2 && line.includes(tok)) {
+              line = line.replace(new RegExp(`(${tok})`, 'g'), '**$1**');
+              break;
+            }
+          }
+          cleanBullets.push(`- ${line}`);
+        }
+
+        if (cleanBullets.length > 0) {
+          sections.push(
+            `### ${idx + 1}. ${heading.replace(/^[❍▶⁍❖✚✓•\-*]+\s*/, '')}\n` +
+            cleanBullets.slice(0, 10).join('\n') +
+            `\n> 📌 **출처:** [${shortName} - ${doc.page}쪽]`
+          );
+        }
+      });
+
+      return sections.join('\n\n');
+    }
+
+    async function callExternalLLM(apiKey, model, systemInstruction, userPrompt) {
       if (apiKey.startsWith('sk-') || model.startsWith('gpt-')) {
         const gptModel = model.startsWith('gpt-') ? model : 'gpt-4o-mini';
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -334,29 +485,23 @@
           })
         });
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error?.message || `OpenAI API 오류 (${res.status})`);
-        }
+        if (!res.ok) throw new Error(data.error?.message || `OpenAI 오류 (${res.status})`);
         return data.choices?.[0]?.message?.content || '';
       }
 
-      // Google Gemini 키(AIza...)인 경우 Gemini API 호출
       const geminiModel = model.startsWith('gemini-') ? model : 'gemini-2.5-flash';
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const body = {
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-        generationConfig: { temperature: 0.2 }
-      };
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: { temperature: 0.2 }
+        })
       });
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error?.message || `Gemini API 오류 (${res.status})`);
-      }
+      if (!res.ok) throw new Error(data.error?.message || `Gemini 오류 (${res.status})`);
       return data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
     }
 
@@ -373,9 +518,9 @@
         bubble.className = 'bg-slate-900 border border-slate-800 text-slate-100 p-4 rounded-2xl rounded-tl-sm w-full text-sm shadow space-y-3';
         let html = `<div class="flex items-center gap-2 text-xs font-bold text-sky-400"><span>🦺 안전관리 AI 도우미</span></div>`;
         if (meta.rewrittenQuery && meta.rewrittenQuery !== meta.originalQuery) {
-          html += `<div class="text-xs bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300">🔍 <b>Query Rewrite 검색어:</b> <code>${meta.rewrittenQuery}</code></div>`;
+          html += `<div class="text-xs bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300">🔍 <b>Query Rewrite (질문 재작성):</b> <code>${meta.rewrittenQuery}</code></div>`;
         }
-        html += `<div class="prose prose-invert max-w-none text-sm">${marked.parse(markdownText)}</div>`;
+        html += `<div class="prose prose-invert max-w-none text-sm answer-body">${marked.parse(markdownText)}</div>`;
 
         if (meta.sources && meta.sources.length > 0) {
           const detailsItems = meta.sources.map(s =>
@@ -401,6 +546,22 @@
       return bubble;
     }
 
+    // 스트리밍(타이핑) 효과 출력
+    async function streamMarkdownIntoBubble(bubble, fullMarkdown) {
+      const bodyEl = bubble.querySelector('.answer-body');
+      const container = document.getElementById('chatContainer');
+      if (!bodyEl) return;
+
+      const step = Math.max(12, Math.floor(fullMarkdown.length / 35));
+      for (let i = step; i < fullMarkdown.length; i += step) {
+        bodyEl.innerHTML = marked.parse(fullMarkdown.slice(0, i));
+        container.scrollTop = container.scrollHeight;
+        await new Promise(r => setTimeout(r, 18));
+      }
+      bodyEl.innerHTML = marked.parse(fullMarkdown);
+      container.scrollTop = container.scrollHeight;
+    }
+
     async function handleChatSubmit(e) {
       e.preventDefault();
       const inputEl = document.getElementById('userInput');
@@ -416,76 +577,49 @@
       const topK = parseInt(document.getElementById('topKRange').value, 10) || 5;
       const useRewrite = document.getElementById('queryRewriteCheck').checked;
 
-      const loadingBubble = appendMessage('assistant', '⏳ 안전관리 매뉴얼에서 관련 규정을 검색하고 답변을 생성하고 있습니다...');
+      // 1. Pre-Retrieval (Query Rewrite)
+      const localRewrite = rewriteQueryLocal(query);
+      let displayRewritten = useRewrite ? localRewrite.rewritten : query;
+      let effectiveSearchQuery = useRewrite ? localRewrite.searchQuery : query;
 
-      try {
-        let searchQuery = query;
-        const recentHistoryText = chatHistory.slice(-6).map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n') || '이전 대화 없음';
+      // 2. Retrieval (MMR / Similarity)
+      const retrieved = retrieveChunks(effectiveSearchQuery, topK, searchType);
 
-        // 1. Pre-Retrieval: Query Rewrite (API 키가 있을 때 실행)
-        if (apiKey && useRewrite) {
-          try {
-            const rewritten = await callGemini(
-              apiKey,
-              model,
-              '너는 검색 최적화 전문가다. 이전 대화 맥락을 참고하여 사용자의 질문을 실험·실습실 안전관리 매뉴얼 검색에 가장 적합한 명확한 한국어 검색 질문 한 문장으로만 재작성하라. 부연 설명 없이 재작성된 질문만 출력하라.',
-              `[이전 대화]\n${recentHistoryText}\n\n[사용자 질문]\n${query}`
-            );
-            if (rewritten && rewritten.trim().length > 2) {
-              searchQuery = rewritten.trim();
-            }
-          } catch (_) {
-            // Query rewrite 실패 시 원본 질문 사용
-          }
-        }
-
-        // 2. Retrieval (MMR / Similarity)
-        const retrieved = retrieveChunks(searchQuery, topK, searchType);
-        const contextText = retrieved.map((doc, idx) =>
-          `[문서 ${idx + 1} | 출처: ${doc.file_name} (${doc.page}쪽)]\n${doc.content}`
-        ).join('\n\n---\n\n');
-
-        let answer = '';
-        if (apiKey) {
-          // 3. Generation (Gemini RAG Chain)
+      // 3. Generation (외부 API 키가 있으면 LLM 호출, 없으면 내장 RAG 합성 엔진으로 즉시 생성!)
+      let answer = '';
+      if (apiKey) {
+        const loadingBubble = appendMessage('assistant', '⏳ 안전관리 매뉴얼을 검색하고 AI 답변을 생성 중입니다...');
+        try {
+          const contextText = retrieved.map((doc, idx) =>
+            `[문서 ${idx + 1} | 출처: ${doc.file_name} (${doc.page}쪽)]\n${doc.content}`
+          ).join('\n\n---\n\n');
           const sysPrompt =
             '너는 직업계고등학교 및 대학 실험·실습실 안전관리 전문 AI 도우미다.\n' +
             '반드시 아래 제공된 [참고 문서]의 내용을 근거로 정확하고 친절하게 답변하라.\n' +
-            '답변할 때는 핵심 안전수칙이나 절차를 읽기 쉽게 항목별로 정리하고, ' +
-            '관련된 출처 문서명과 페이지 번호(예: [직업계고등학교 실습실 안전관리 간편 매뉴얼 9쪽])를 함께 밝혀라.\n' +
-            '만약 [참고 문서]에 없는 내용이라면 추측해서 지어내지 말고 매뉴얼에서 확인되지 않는 내용이라고 솔직히 안내하라.\n\n' +
+            '핵심 안전수칙이나 절차를 읽기 쉽게 항목별로 정리하고 출처 문서명과 페이지 번호를 함께 밝혀라.\n\n' +
             `[참고 문서]\n${contextText}`;
-
-          answer = await callGemini(
-            apiKey,
-            model,
-            sysPrompt,
-            `[이전 대화 기록]\n${recentHistoryText}\n\n[질문]\n${query}`
-          );
-        } else {
-          // API 키 미입력 시에도 매뉴얼 검색 결과를 즉시 요약 표시
-          answer =
-            `> 🔑 **안내:** 왼쪽 상단 **[🔑 API 키 / 설정]**에서 Gemini API 키를 입력하시면 AI 요약 답변이 활성화됩니다. 아래는 질문하신 내용과 가장 관련도가 높은 **안전관리 매뉴얼 원문 검색 결과**입니다.\n\n` +
-            retrieved.slice(0, 3).map(d => `### 📄 ${d.file_name} (${d.page}쪽)\n${d.content}`).join('\n\n---\n\n');
+          answer = await callExternalLLM(apiKey, model, sysPrompt, query);
+          loadingBubble.parentElement.remove();
+        } catch (_) {
+          loadingBubble.parentElement.remove();
+          answer = synthesizeStructuredAnswer(query, retrieved);
         }
-
-        loadingBubble.parentElement.remove();
-        appendMessage('assistant', answer, {
-          originalQuery: query,
-          rewrittenQuery: searchQuery,
-          sources: retrieved
-        });
-
-        chatHistory.push({ role: 'user', content: query });
-        chatHistory.push({ role: 'assistant', content: answer });
-      } catch (err) {
-        loadingBubble.parentElement.remove();
-        appendMessage('assistant', `⚠️ **오류가 발생했습니다:** ${err.message}\n\n왼쪽 설정에서 Gemini API 키가 올바른지 확인해 주세요.`);
+      } else {
+        answer = synthesizeStructuredAnswer(query, retrieved);
       }
+
+      const finalBubble = appendMessage('assistant', '', {
+        originalQuery: query,
+        rewrittenQuery: useRewrite ? displayRewritten : null,
+        sources: retrieved
+      });
+      await streamMarkdownIntoBubble(finalBubble, answer);
+
+      chatHistory.push({ role: 'user', content: query });
+      chatHistory.push({ role: 'assistant', content: answer });
     }
 
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
 </html>
-
