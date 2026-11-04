@@ -35,13 +35,23 @@ with st.sidebar:
     st.header("⚙️ RAG 챗봇 설정")
 
     env_key = load_saved_api_key()
-    api_key_input = st.text_input(
-        "🔑 Gemini API Key",
-        value=env_key,
-        type="password",
-        placeholder="AIzaSy...",
-        help="api_key.txt(.env) 파일에 GEMINI_API_KEY를 설정하거나 여기에 직접 입력하세요.",
-    )
+    if env_key:
+        st.success("🔒 Gemini API 키가 안전하게 연결됨")
+        custom_key = st.text_input(
+            "🔑 다른 API 키 직접 사용 (선택)",
+            value="",
+            type="password",
+            placeholder="비워두면 서버 설정 키 사용",
+        )
+        api_key_input = custom_key.strip() or env_key
+    else:
+        api_key_input = st.text_input(
+            "🔑 Gemini API Key",
+            value="",
+            type="password",
+            placeholder="AIzaSy...",
+            help="Secrets 또는 .env 파일에 GEMINI_API_KEY를 설정하거나 여기에 직접 입력하세요.",
+        ).strip()
 
     if api_key_input:
         os.environ["GEMINI_API_KEY"] = api_key_input
