@@ -1,11 +1,10 @@
 """
-[Step 2] 실험·실습실 안전관리 RAG 챗봇 (Streamlit UI - 초저비용/최소 크레딧 최적화 버전)
+[Step 2] 실험·실습실 안전관리 RAG 챗봇 (Streamlit UI - 3가지 모드 선택 통합 버전)
 전주대학교 AI융합프로젝트 (김영수 교수님) 강의안 전 과정 통합 구현:
-- 크레딧 최적화 1: 가장 저렴한 초경량 모델(gemini-2.5-flash-lite / gemini-2.0-flash-lite) 기본 적용
-- 크레딧 최적화 2: Pre-Retrieval(Query Rewrite)을 로컬 안전 도메인 규칙으로 처리하여 질문당 LLM 호출을 2회 → 1회로 50% 절감
-- 크레딧 최적화 3: 로컬 하이브리드(BM25 + MMR) 리트리버를 기본 사용하여 임베딩 API 크레딧 소모 0원 (FAISS 임베딩도 선택 가능)
-- 크레딧 최적화 4: top_k=3, 청크 길이 압축, 최근 대화 2턴 제한, max_output_tokens 제한 및 동일 질문 캐싱(@st.cache_data)
-- 영어 원문 PDF 업로드 시 무료 자동 한국어 번역 및 실시간 지식베이스 추가 지원
+1. ⚡ 오프라인 RAG 엔진 버전: API 키 및 외부 호출 없이 로컬 BM25/MMR 검색 + 규칙 기반 구조화 요약으로 0.1초 즉시 답변
+2. 🦙 무료 오픈소스 LLM 버전 (강의안 AdvancedRAG p.12~19): Ollama 로컬 오픈소스 모델(qwen2.5:3b, exaone3.5:2.4b, gemma2:2b, llama3.2:3b) 연동 (API 키 불필요 · 0원)
+3. ☁️ 클라우드 API 버전: 초경량 모델(gemini-2.5-flash-lite / gemini-2.0-flash-lite) + 동일 질문 캐싱으로 최소 크레딧 소모
++ 🌐 영어 원문 PDF 업로드 시 무료 자동 한국어 번역 및 실시간 지식베이스 추가 지원
 """
 
 import json
@@ -13,6 +12,7 @@ import math
 import os
 import re
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
@@ -41,13 +41,13 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 st.set_page_config(
-    page_title="실험·실습실 안전관리 AI 챗봇 (크레딧 최적화)",
+    page_title="실험·실습실 안전관리 AI 챗봇 (3모드 통합)",
     page_icon="🦺",
     layout="wide",
 )
 
 # ---------------------------------------------------------------------------
-# 로컬 Pre-Retrieval (Query Rewrite) 규칙 (LLM 추가 호출 없이 0크레딧으로 검색어 최적화)
+# 로컬 Pre-Retrieval (Query Rewrite) 규칙 (0크레딧)
 # ---------------------------------------------------------------------------
 DOMAIN_REWRITE_RULES = [
     (
@@ -94,7 +94,7 @@ DOMAIN_REWRITE_RULES = [
 
 
 def local_query_rewrite(query: str, history_messages: list[dict]) -> str:
-    """API 크레딧을 전혀 쓰지 않고 질문을 검색 최적화 문장으로 재작성합니다."""
+    """API 크레딧 소모 없이 질문을 검색 최적화 문장으로 재작성합니다."""
     contextual = query
     if len(query) <= 16 and len(history_messages) >= 2:
         prev_user = next(
@@ -111,7 +111,7 @@ def local_query_rewrite(query: str, history_messages: list[dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 영어 텍스트 감지 및 무료 자동 번역 (API 크레딧 0원 소모)
+# 영어 텍스트 감지 및 무료 자동 번역
 # ---------------------------------------------------------------------------
 def is_mostly_english(text: str) -> bool:
     ascii_cnt = len(re.findall(r"[A-Za-z]", text))
@@ -136,7 +136,7 @@ def translate_en_to_ko_free(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 기본 PDF 청크 로드 (메모리 캐싱 - 임베딩 API 호출 없이 즉시 로드)
+# 기본 PDF 청크 로드 및 로컬 하이브리드 MMR 검색 (0크레딧 · 완전 오프라인)
 # ---------------------------------------------------------------------------
 @st.cache_resource(show_spinner=False)
 def get_base_chunks() -> list[Document]:
@@ -165,7 +165,7 @@ def retrieve_local_mmr(
     top_k: int = 3,
     search_type: str = "mmr",
 ) -> list[Document]:
-    """임베딩 API 크레딧 소모 없이 로컬 TF-IDF/BM25 + MMR 방식으로 가장 관련도 높은 청크를 검색합니다."""
+    """임베딩 API 없이 100% 오프라인으로 가장 관련성 높은 청크를 검색합니다."""
     q_tokens = tokenize_ko_en(query)
     if not q_tokens:
         return chunks[:top_k]
@@ -214,155 +214,104 @@ def retrieve_local_mmr(
     return selected
 
 
-def synthesize_fallback_answer(query: str, docs: list[Document]) -> str:
-    """API 키가 없거나 한도 초과일 때도 매뉴얼 원문을 바탕으로 깔끔한 구조화 답변을 생성합니다."""
+# ---------------------------------------------------------------------------
+# 모드 1: ⚡ 오프라인 RAG 엔진 답변 합성기 (API 불필요 · 100% 오프라인)
+# ---------------------------------------------------------------------------
+def synthesize_offline_rag_answer(query: str, docs: list[Document]) -> str:
+    """API 호출 없이 검색된 매뉴얼 청크에서 핵심 조항을 추출·구조화하여 답변을 생성합니다."""
     if not docs:
-        return "질문하신 내용과 일치하는 안전수칙을 찾지 못했습니다."
-    lines = [f"질문하신 **'{query}'**에 대한 실험·실습실 안전관리 매뉴얼 핵심 지침입니다.\n"]
+        return "질문하신 내용과 일치하는 안전수칙을 찾지 못했습니다. 다른 키워드(예: 화재, 화상, 밀링, 황산, 보호구, 안전점검)로 질문해 주세요."
+
+    q_tokens = [t for t in re.split(r"[^\w가-힣]+", query.lower()) if len(t) >= 2]
+    sections = [
+        f"질문하신 **\"{query}\"**에 대해 실험·실습실 안전관리 매뉴얼에서 확인된 핵심 지침을 정리해 드립니다.\n"
+    ]
+
     for idx, doc in enumerate(docs, 1):
         fname = doc.metadata.get("file_name", "안전매뉴얼")
         page = doc.metadata.get("page_number", doc.metadata.get("page", 0) + 1)
-        body = [
-            l.strip().lstrip("❍▶⁍❖✚✓•-* ")
+        raw_lines = [
+            l.strip()
             for l in doc.page_content.splitlines()
-            if len(l.strip()) > 2 and not l.strip().startswith("[")
+            if len(l.strip()) > 2
+            and not l.strip().startswith("[")
+            and not re.match(r"^-?\s*\d+\s*-?$", l.strip())
+            and "실습실(장) 안전관리 간편 매뉴얼" not in l
         ]
-        bullets = "\n".join(f"- {b}" for b in body[:8])
-        lines.append(f"### {idx}. {fname} ({page}쪽)\n{bullets}")
-    return "\n\n".join(lines)
+        if not raw_lines:
+            continue
+
+        heading = raw_lines[0].lstrip("❍▶⁍❖✚✓•-* ")
+        if len(heading) > 55:
+            heading = f"핵심 안전수칙 및 행동요령 ({fname} {page}쪽)"
+        body_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
+
+        bullets = []
+        for line in body_lines[:10]:
+            cleaned = line.lstrip("❍▶⁍❖✚✓•-* ").strip()
+            if len(cleaned) < 3:
+                continue
+            for tok in q_tokens:
+                if len(tok) >= 2 and tok in cleaned:
+                    cleaned = cleaned.replace(tok, f"**{tok}**", 1)
+                    break
+            bullets.append(f"- {cleaned}")
+
+        if bullets:
+            sections.append(
+                f"### {idx}. {heading}\n"
+                + "\n".join(bullets)
+                + f"\n> 📌 **출처:** [{fname} - {page}쪽]"
+            )
+
+    return "\n\n".join(sections)
 
 
 # ---------------------------------------------------------------------------
-# 사이드바: 크레딧 절약 설정 & 영어 PDF 자동 번역 업로드
+# 모드 2: 🦙 무료 오픈소스 LLM 호출 (Ollama 로컬 실행 - 강의안 AdvancedRAG 반영)
 # ---------------------------------------------------------------------------
-if "extra_chunks" not in st.session_state:
-    st.session_state.extra_chunks = []
-if "uploaded_pdf_names" not in st.session_state:
-    st.session_state.uploaded_pdf_names = []
-
-with st.sidebar:
-    st.header("⚙️ RAG 챗봇 설정 (초저비용 최적화)")
-
-    env_key = load_saved_api_key()
-    if env_key:
-        st.success("🔒 Gemini API 키가 안전하게 연결됨")
-        custom_key = st.text_input(
-            "🔑 다른 API 키 직접 사용 (선택)",
-            value="",
-            type="password",
-            placeholder="비워두면 서버 설정 키 사용",
-        )
-        api_key_input = custom_key.strip() or env_key
-    else:
-        api_key_input = st.text_input(
-            "🔑 Gemini API Key (선택)",
-            value="",
-            type="password",
-            placeholder="비워두어도 내장 RAG 요약이 즉시 동작합니다",
-        ).strip()
-
-    st.divider()
-    st.subheader("💰 최소 크레딧 모델 & 절약 옵션")
-    model_name = st.selectbox(
-        "Gemini 모델 (위에서부터 크레딧 소모 최소)",
-        options=[
-            "gemini-2.5-flash-lite",
-            "gemini-2.0-flash-lite",
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-        ],
-        index=0,
-        help="flash-lite 모델은 일반 모델 대비 크레딧 소모가 가장 적고 무료 호출 한도가 가장 넉넉합니다.",
+def call_opensource_ollama_llm(
+    ollama_url: str,
+    ollama_model: str,
+    temperature: float,
+    context_text: str,
+    history_text: str,
+    question: str,
+) -> str:
+    """로컬 Ollama 서버(http://localhost:11434)의 무료 오픈소스 LLM을 호출합니다."""
+    endpoint = f"{ollama_url.rstrip('/')}/api/chat"
+    system_msg = (
+        "너는 직업계고등학교 및 대학 실험·실습실 안전관리 전문 AI 도우미다.\n"
+        "반드시 아래 [참고 문서]의 내용을 근거로 핵심 안전수칙과 절차를 한국어로 명확하게 항목별로 정리해 답하라.\n"
+        "관련된 출처 문서명과 페이지 번호도 함께 밝혀라.\n\n"
+        f"[참고 문서]\n{context_text}"
     )
-    temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.1)
+    user_msg = f"[이전 대화]\n{history_text}\n\n[질문]\n{question}"
+    payload = json.dumps(
+        {
+            "model": ollama_model,
+            "stream": False,
+            "options": {"temperature": temperature},
+            "messages": [
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": user_msg},
+            ],
+        }
+    ).encode("utf-8")
 
-    retriever_engine = st.radio(
-        "임베딩/검색 엔진",
-        options=["local_zero_credit", "faiss_gemini"],
-        index=0,
-        format_func=lambda x: (
-            "⚡ 로컬 하이브리드 MMR (임베딩 크레딧 0원 · 권장)"
-            if x == "local_zero_credit"
-            else "🧠 FAISS + Gemini 임베딩 API 사용"
-        ),
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
     )
-
-    search_type = st.radio(
-        "검색 방식 (Retriever)",
-        options=["mmr", "similarity"],
-        index=0,
-        format_func=lambda x: "MMR (다양성 + 관련성 균형)" if x == "mmr" else "Similarity (단순 유사도)",
-    )
-    top_k = st.slider("검색할 문서 조각 수 (k - 적을수록 토큰 절약)", 2, 6, 3)
-
-    rewrite_mode = st.selectbox(
-        "Pre-Retrieval (Query Rewrite 방식)",
-        options=["local_zero_credit", "llm_rewrite", "off"],
-        index=0,
-        format_func=lambda x: {
-            "local_zero_credit": "⚡ 로컬 안전규칙 재작성 (크레딧 0원 · 권장)",
-            "llm_rewrite": "🤖 LLM 질문 재작성 (질문당 API 1회 추가 소모)",
-            "off": "사용 안 함",
-        }[x],
-    )
-
-    st.divider()
-    st.subheader("🌐 영어/추가 PDF 업로드 (자동 한글 번역)")
-    uploaded_files = st.file_uploader(
-        "영어 원문 PDF를 올리면 자동으로 한국어로 번역해 챗봇에 추가합니다 (LLM 크레딧 0원)",
-        type=["pdf"],
-        accept_multiple_files=True,
-    )
-    if uploaded_files:
-        splitter = RecursiveCharacterTextSplitter(chunk_size=900, chunk_overlap=150)
-        for uf in uploaded_files:
-            if uf.name not in st.session_state.uploaded_pdf_names:
-                with st.spinner(f"[{uf.name}] 텍스트 추출 및 한국어 자동 번역 중..."):
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        tmp.write(uf.getbuffer())
-                        tmp_path = tmp.name
-                    try:
-                        loader = PyPDFLoader(tmp_path)
-                        raw_docs = loader.load()
-                        new_docs = []
-                        for d in raw_docs:
-                            pno = d.metadata.get("page", 0) + 1
-                            txt = (d.page_content or "").strip()
-                            if len(txt) < 10:
-                                continue
-                            if is_mostly_english(txt):
-                                ko_txt = translate_en_to_ko_free(txt)
-                                d.page_content = (
-                                    f"[자동 한국어 번역 ({uf.name} - {pno}쪽)]\n{ko_txt}\n\n"
-                                    f"[영어 원문]\n{txt}"
-                                )
-                            else:
-                                d.page_content = f"[{uf.name} - {pno}쪽]\n{txt}"
-                            d.metadata["file_name"] = uf.name
-                            d.metadata["page_number"] = pno
-                            new_docs.append(d)
-                        split_new = splitter.split_documents(new_docs)
-                        st.session_state.extra_chunks.extend(split_new)
-                        st.session_state.uploaded_pdf_names.append(uf.name)
-                        st.success(f"✅ {uf.name}: {len(split_new)}개 청크 자동 번역 & 추가 완료!")
-                    finally:
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
-
-    st.divider()
-    st.subheader("📚 현재 학습된 문서")
-    for pdf in PDF_FILES:
-        st.caption(f"✅ `{pdf.name}`")
-    for up_name in st.session_state.uploaded_pdf_names:
-        st.caption(f"🌐 `{up_name}` (자동 번역 완료)")
-
-    if st.button("🗑️ 대화 기록 초기화", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
+    with urllib.request.urlopen(req, timeout=45) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+        return data.get("message", {}).get("content", "").strip()
 
 
 # ---------------------------------------------------------------------------
-# 동일 질문 응답 캐싱 (같은 질문 반복 시 API 크레딧 0원 소모)
+# 모드 3: ☁️ 클라우드 API 호출 (초경량 모델 + 동일 질문 캐싱)
 # ---------------------------------------------------------------------------
 @st.cache_data(show_spinner=False, ttl=3600)
 def generate_cached_llm_answer(
@@ -373,12 +322,14 @@ def generate_cached_llm_answer(
     history_text: str,
     question: str,
 ) -> tuple[str, str]:
-    """
-    가장 크레딧 소모가 적은 모델로 답변을 생성하고 캐싱합니다.
-    선택한 모델이 일시적 한도 초과나 미지원일 경우 자동으로 차순위 경량 모델로 폴백합니다.
-    """
+    """초경량 Gemini 모델로 답변을 생성하고 동일 질문을 캐싱하여 크레딧을 절약합니다."""
     candidate_models = [primary_model]
-    for fallback_m in ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]:
+    for fallback_m in [
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+    ]:
         if fallback_m not in candidate_models:
             candidate_models.append(fallback_m)
 
@@ -420,25 +371,21 @@ def generate_cached_llm_answer(
         except Exception as e:
             last_err = e
             continue
-    raise RuntimeError(f"LLM 호출 실패: {last_err}")
+    raise RuntimeError(f"API 호출 실패: {last_err}")
 
 
 def format_chat_history(messages: list[dict], max_turns: int = 2) -> str:
-    """토큰 절약을 위해 최근 2턴의 대화만 압축하여 전달합니다."""
     recent = messages[-(max_turns * 2) :]
     if not recent:
         return "없음"
     lines = []
     for m in recent:
         role_kr = "사용자" if m["role"] == "user" else "AI"
-        # 이전 답변은 200자까지만 요약해 입력 토큰 절약
-        short_content = m["content"][:200]
-        lines.append(f"{role_kr}: {short_content}")
+        lines.append(f"{role_kr}: {m['content'][:200]}")
     return "\n".join(lines)
 
 
 def format_docs_compact(docs: list[Document], max_chars_per_doc: int = 650) -> str:
-    """입력 토큰(크레딧) 소모를 최소화하기 위해 검색된 청크 핵심 내용을 압축 포맷팅합니다."""
     formatted = []
     for i, doc in enumerate(docs, 1):
         fname = doc.metadata.get("file_name", Path(doc.metadata.get("source", "")).name)
@@ -449,12 +396,162 @@ def format_docs_compact(docs: list[Document], max_chars_per_doc: int = 650) -> s
 
 
 # ---------------------------------------------------------------------------
+# 사이드바: 3가지 엔진 모드 선택 + RAG 파라미터 + 영어 PDF 번역 업로드
+# ---------------------------------------------------------------------------
+if "extra_chunks" not in st.session_state:
+    st.session_state.extra_chunks = []
+if "uploaded_pdf_names" not in st.session_state:
+    st.session_state.uploaded_pdf_names = []
+
+with st.sidebar:
+    st.header("🎛️ 챗봇 엔진 모드 선택")
+
+    engine_mode = st.radio(
+        "사용할 챗봇 버전을 선택하세요",
+        options=["offline_rag", "opensource_llm", "cloud_api"],
+        index=0,
+        format_func=lambda x: {
+            "offline_rag": "⚡ 1. 오프라인 RAG 엔진 (API 불필요 · 0원)",
+            "opensource_llm": "🦙 2. 무료 오픈소스 LLM (Ollama · 0원)",
+            "cloud_api": "☁️ 3. API 사용 버전 (Gemini 초경량)",
+        }[x],
+    )
+
+    api_key_input = ""
+    model_name = "gemini-2.5-flash-lite"
+    ollama_model = "qwen2.5:3b"
+    ollama_url = "http://localhost:11434"
+    temperature = 0.1
+
+    if engine_mode == "offline_rag":
+        st.success("✅ **오프라인 RAG 모드 활성**: API 키나 외부 서버 없이 내장된 안전매뉴얼 RAG 엔진으로 즉시 답변합니다.")
+
+    elif engine_mode == "opensource_llm":
+        st.info(
+            "🦙 **무료 오픈소스 LLM 모드 (강의안 AdvancedRAG)**: 내 PC에 설치된 Ollama 오픈소스 모델을 호출합니다. (미실행 시 오프라인 RAG 엔진으로 자동 전환)"
+        )
+        ollama_model = st.selectbox(
+            "오픈소스 LLM 모델 선택",
+            options=[
+                "qwen2.5:3b",
+                "exaone3.5:2.4b",
+                "gemma2:2b",
+                "llama3.2:3b",
+            ],
+            index=0,
+            help="터미널에서 `ollama run qwen2.5:3b` 명령으로 무료 실행 가능한 한국어 지원 오픈소스 모델입니다.",
+        )
+        ollama_url = st.text_input("Ollama 로컬 주소", value="http://localhost:11434")
+        temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.1)
+
+    elif engine_mode == "cloud_api":
+        env_key = load_saved_api_key()
+        if env_key:
+            st.success("🔒 서버에 Gemini API 키가 안전하게 연결됨")
+            custom_key = st.text_input(
+                "🔑 다른 API 키 직접 사용 (선택)",
+                value="",
+                type="password",
+                placeholder="비워두면 서버 설정 키 사용",
+            )
+            api_key_input = custom_key.strip() or env_key
+        else:
+            api_key_input = st.text_input(
+                "🔑 Gemini API Key 입력",
+                value="",
+                type="password",
+                placeholder="AIzaSy...",
+            ).strip()
+
+        model_name = st.selectbox(
+            "Gemini 모델 (위에서부터 크레딧 소모 최소)",
+            options=[
+                "gemini-2.5-flash-lite",
+                "gemini-2.0-flash-lite",
+                "gemini-2.5-flash",
+                "gemini-2.0-flash",
+            ],
+            index=0,
+        )
+        temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.1)
+
+    st.divider()
+    st.subheader("🔍 리트리버(검색) 설정")
+    search_type = st.radio(
+        "검색 방식 (Retriever)",
+        options=["mmr", "similarity"],
+        index=0,
+        format_func=lambda x: "MMR (다양성 + 관련성 균형)" if x == "mmr" else "Similarity (단순 유사도)",
+    )
+    top_k = st.slider("검색할 문서 조각 수 (top-k)", 2, 6, 3)
+    use_rewrite = st.checkbox("Pre-Retrieval: 질문 재작성 (0크레딧 로컬)", value=True)
+
+    st.divider()
+    st.subheader("🌐 영어/추가 PDF 업로드 (자동 한글 번역)")
+    uploaded_files = st.file_uploader(
+        "영어 원문 PDF를 올리면 자동으로 한국어로 번역해 지식베이스에 추가합니다.",
+        type=["pdf"],
+        accept_multiple_files=True,
+    )
+    if uploaded_files:
+        splitter = RecursiveCharacterTextSplitter(chunk_size=900, chunk_overlap=150)
+        for uf in uploaded_files:
+            if uf.name not in st.session_state.uploaded_pdf_names:
+                with st.spinner(f"[{uf.name}] 추출 및 한국어 자동 번역 중..."):
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(uf.getbuffer())
+                        tmp_path = tmp.name
+                    try:
+                        loader = PyPDFLoader(tmp_path)
+                        raw_docs = loader.load()
+                        new_docs = []
+                        for d in raw_docs:
+                            pno = d.metadata.get("page", 0) + 1
+                            txt = (d.page_content or "").strip()
+                            if len(txt) < 10:
+                                continue
+                            if is_mostly_english(txt):
+                                ko_txt = translate_en_to_ko_free(txt)
+                                d.page_content = (
+                                    f"[자동 한국어 번역 ({uf.name} - {pno}쪽)]\n{ko_txt}\n\n"
+                                    f"[영어 원문]\n{txt}"
+                                )
+                            else:
+                                d.page_content = f"[{uf.name} - {pno}쪽]\n{txt}"
+                            d.metadata["file_name"] = uf.name
+                            d.metadata["page_number"] = pno
+                            new_docs.append(d)
+                        split_new = splitter.split_documents(new_docs)
+                        st.session_state.extra_chunks.extend(split_new)
+                        st.session_state.uploaded_pdf_names.append(uf.name)
+                        st.success(f"✅ {uf.name}: {len(split_new)}개 청크 자동 번역 & 추가 완료!")
+                    finally:
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
+
+    st.divider()
+    st.subheader("📚 학습된 문서 목록")
+    for pdf in PDF_FILES:
+        st.caption(f"✅ `{pdf.name}`")
+    for up_name in st.session_state.uploaded_pdf_names:
+        st.caption(f"🌐 `{up_name}` (번역 완료)")
+
+    if st.button("🗑️ 대화 기록 초기화", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+
+# ---------------------------------------------------------------------------
 # 메인 화면
 # ---------------------------------------------------------------------------
+mode_labels = {
+    "offline_rag": "⚡ 오프라인 RAG 엔진 버전 (API 불필요 · 0원)",
+    "opensource_llm": f"🦙 무료 오픈소스 LLM 버전 (Ollama: {ollama_model})",
+    "cloud_api": f"☁️ 클라우드 API 버전 ({model_name} 최소 크레딧)",
+}
+
 st.title("🦺 실험·실습실 안전관리 AI 챗봇")
-st.caption(
-    "전주대학교 AI융합프로젝트 · 초경량 모델(Flash-Lite) + 0크레딧 로컬 하이브리드 검색 + 영어 PDF 자동 번역 지원"
-)
+st.caption(f"현재 선택된 모드: **{mode_labels[engine_mode]}** | 왼쪽 사이드바에서 언제든 버전을 전환할 수 있습니다.")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
@@ -463,8 +560,7 @@ if "messages" not in st.session_state:
             "content": (
                 "안녕하세요! **직업계고등학교 실습실 안전관리 간편 매뉴얼**과 "
                 "**[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육** 문서를 학습한 AI 안전도우미입니다.\n\n"
-                "- 💰 **크레딧 최소 소모 최적화**: 초경량 `flash-lite` 모델 + 0크레딧 로컬 MMR 검색 + 동일 질문 캐싱이 적용되어 있습니다.\n"
-                "- 🌐 **영어 PDF 자동 번역**: 왼쪽 사이드바에 영어 원문 PDF를 올리면 자동으로 한국어로 번역해 답변합니다!"
+                "왼쪽 사이드바에서 **① ⚡ 오프라인 RAG 엔진 버전**, **② 🦙 무료 오픈소스 LLM 버전(Ollama)**, **③ ☁️ API 사용 버전(Gemini Flash-Lite)** 중 원하는 모드를 자유롭게 선택해 질문해 보세요!"
             ),
         }
     ]
@@ -485,6 +581,8 @@ for col, sq in zip(cols, sample_questions):
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg.get("engine_badge"):
+            st.caption(f"🎛️ **응답 모드:** `{msg['engine_badge']}`")
         if msg.get("rewritten_query"):
             st.caption(f"🔍 **Query Rewrite 검색어:** `{msg['rewritten_query']}`")
         if msg.get("sources"):
@@ -506,70 +604,65 @@ if query:
         history_text = format_chat_history(st.session_state.messages[:-1])
 
         # 1. Pre-Retrieval (Query Rewrite)
-        search_query = query
-        if rewrite_mode == "local_zero_credit":
-            search_query = local_query_rewrite(query, st.session_state.messages)
-        elif rewrite_mode == "llm_rewrite" and api_key_input:
-            try:
-                llm_rw = ChatGoogleGenerativeAI(
-                    model=model_name,
-                    temperature=0.0,
-                    max_output_tokens=80,
-                    google_api_key=api_key_input,
-                )
-                rw_prompt = ChatPromptTemplate.from_template(
-                    "다음 질문을 실험실 안전매뉴얼 검색용 한국어 한 문장으로만 재작성하라: {q}"
-                )
-                search_query = (rw_prompt | llm_rw | StrOutputParser()).invoke({"q": query}).strip()
-            except Exception:
-                search_query = local_query_rewrite(query, st.session_state.messages)
+        search_query = local_query_rewrite(query, st.session_state.messages) if use_rewrite else query
 
-        # 2. Retrieval (0크레딧 로컬 하이브리드 MMR 기본, 선택 시 FAISS 사용)
-        if retriever_engine == "faiss_gemini" and api_key_input:
-            try:
-                emb = get_embeddings(api_key=api_key_input)
-                if not (FAISS_DB_DIR / "index.faiss").exists():
-                    vs = build_vector_store(api_key=api_key_input)
-                else:
-                    vs = FAISS.load_local(
-                        str(FAISS_DB_DIR), emb, allow_dangerous_deserialization=True
-                    )
-                retriever = vs.as_retriever(
-                    search_type=search_type,
-                    search_kwargs={"k": top_k},
-                )
-                retrieved_docs = retriever.invoke(search_query)
-            except Exception:
-                retrieved_docs = retrieve_local_mmr(all_chunks, search_query, top_k, search_type)
-        else:
-            retrieved_docs = retrieve_local_mmr(all_chunks, search_query, top_k, search_type)
-
+        # 2. Retrieval (로컬 하이브리드 MMR)
+        retrieved_docs = retrieve_local_mmr(all_chunks, search_query, top_k, search_type)
         context_text = format_docs_compact(retrieved_docs)
 
-        if rewrite_mode != "off" and search_query != query:
-            st.caption(f"🔍 **Query Rewrite 검색어 (0크레딧 로컬 최적화):** `{search_query}`")
+        if use_rewrite and search_query != query:
+            st.caption(f"🔍 **Query Rewrite 검색어:** `{search_query}`")
 
-        # 3. Generation (캐싱된 초경량 LLM 호출 또는 내장 요약 폴백)
-        used_model_badge = "내장 RAG 요약 엔진 (0크레딧)"
-        if api_key_input:
-            with st.spinner(f"초경량 모델({model_name})로 답변 생성 중..."):
+        # 3. 선택된 모드별 답변 생성
+        used_badge = ""
+        if engine_mode == "offline_rag":
+            answer = synthesize_offline_rag_answer(query, retrieved_docs)
+            used_badge = "⚡ 오프라인 RAG 엔진 (0크레딧)"
+
+        elif engine_mode == "opensource_llm":
+            with st.spinner(f"🦙 무료 오픈소스 LLM ({ollama_model}) 호출 중..."):
                 try:
-                    answer, used_m = generate_cached_llm_answer(
-                        api_key=api_key_input,
-                        primary_model=model_name,
+                    answer = call_opensource_ollama_llm(
+                        ollama_url=ollama_url,
+                        ollama_model=ollama_model,
                         temperature=temperature,
                         context_text=context_text,
                         history_text=history_text,
                         question=query,
                     )
-                    used_model_badge = f"{used_m} (최소 크레딧 모드)"
+                    used_badge = f"🦙 무료 오픈소스 LLM (Ollama: {ollama_model})"
                 except Exception:
-                    answer = synthesize_fallback_answer(query, retrieved_docs)
-        else:
-            answer = synthesize_fallback_answer(query, retrieved_docs)
+                    st.info(
+                        f"💡 로컬 Ollama 서버(`{ollama_url}`)가 실행 중이지 않아 **⚡ 오프라인 RAG 엔진**으로 즉시 답변해 드립니다. "
+                        f"(Ollama 사용 시 터미널에서 `ollama run {ollama_model}` 실행)"
+                    )
+                    answer = synthesize_offline_rag_answer(query, retrieved_docs)
+                    used_badge = "⚡ 오프라인 RAG 엔진 (Ollama 미실행 자동 전환)"
+
+        else:  # cloud_api
+            if not api_key_input:
+                st.info("💡 API 키가 입력되지 않아 **⚡ 오프라인 RAG 엔진**으로 즉시 답변해 드립니다.")
+                answer = synthesize_offline_rag_answer(query, retrieved_docs)
+                used_badge = "⚡ 오프라인 RAG 엔진 (API 키 미입력 자동 전환)"
+            else:
+                with st.spinner(f"☁️ 초경량 API 모델({model_name})로 답변 생성 중..."):
+                    try:
+                        answer, used_m = generate_cached_llm_answer(
+                            api_key=api_key_input,
+                            primary_model=model_name,
+                            temperature=temperature,
+                            context_text=context_text,
+                            history_text=history_text,
+                            question=query,
+                        )
+                        used_badge = f"☁️ 클라우드 API ({used_m} · 최소 크레딧)"
+                    except Exception as e:
+                        st.warning(f"API 호출 한도/오류({e})가 발생하여 **⚡ 오프라인 RAG 엔진**으로 자동 전환합니다.")
+                        answer = synthesize_offline_rag_answer(query, retrieved_docs)
+                        used_badge = "⚡ 오프라인 RAG 엔진 (API 폴백)"
 
         st.markdown(answer)
-        st.caption(f"⚡ **응답 엔진:** `{used_model_badge}` | **검색 청크:** `{len(retrieved_docs)}개`")
+        st.caption(f"🎛️ **응답 모드:** `{used_badge}` | **검색 청크:** `{len(retrieved_docs)}개`")
 
         sources_info = []
         for doc in retrieved_docs:
@@ -587,7 +680,8 @@ if query:
             {
                 "role": "assistant",
                 "content": answer,
-                "rewritten_query": search_query if (rewrite_mode != "off" and search_query != query) else None,
+                "engine_badge": used_badge,
+                "rewritten_query": search_query if (use_rewrite and search_query != query) else None,
                 "sources": sources_info,
             }
         )
