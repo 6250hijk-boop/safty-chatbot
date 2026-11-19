@@ -592,61 +592,142 @@
       return selected;
     }
 
-    // 3단계 [Generation]: API 키 없이도 매뉴얼 청크에서 핵심 문장을 구조화하여 AI 답변을 생성하는 내장 합성 엔진
+    // 질문 의도별 핀포인트 핵심 단답 사전 (질문에 딱 맞는 1~2문장 직접 결론 제공)
+    const DIRECT_QA_RULES = [
+      {
+        match: q => q.includes('ccc') || (q.includes('응급') && (q.includes('처리') || q.includes('과정') || q.includes('조치'))),
+        directAnswer: '**응급조치 CCC**는 실험·실습실 안전사고 발생 시 수행하는 3단계 핵심 응급처치 절차로, **① Check(현장 상황·환자 파악 및 대피) → ② Call(보건교사·관리자 보고 및 119 신고) → ③ Care(구급대 도착·병원 이송까지 응급처치 및 교사 동행)**를 뜻합니다.',
+        keyPoints: [
+          '**1단계(사고 발생):** 학생은 당황하지 않고 즉시 지도교사에게 알림',
+          '**2단계(응급조치 CCC):** Check(현장 파악·대피) → Call(보고·119 요청·보호자 연락) → Care(응급처치·병원 이송 시 교사 1인 동행)',
+          '**3~4단계(보고 및 후속조치):** 사고 원인 파악·관할 교육청 보고 후 재발 방지책 수립 및 학교안전공제회 보상 신청'
+        ],
+        source: '직업계고등학교 실습실 안전관리 간편 매뉴얼 3쪽 (본문 1쪽)'
+      },
+      {
+        match: q => (q.includes('면장갑') || q.includes('장갑')) && (q.includes('밀링') || q.includes('띠톱') || q.includes('선반') || q.includes('회전') || q.includes('이유') || q.includes('안 되는') || q.includes('안되는') || q.includes('금지')),
+        directAnswer: '회전하는 공구(밀링 커터, 선반 주축, 띠톱 날 등)나 금속 칩에 **면장갑의 올이 감기면서 손이 기계로 빨려 들어가는 심각한 말림·절단 사고(회전말림점 위험)**가 발생하기 때문입니다.',
+        keyPoints: [
+          '**밀링·띠톱·회전체 작업 시:** 일반 면장갑 착용을 절대 금지합니다.',
+          '**칩(금속 부스러기) 제거 시:** 반드시 **기계를 완전히 정지**시킨 상태에서 손이 아닌 **청소용 브러시(칩 제거솔)**로 제거해야 합니다.'
+        ],
+        source: '직업계고등학교 실습실 안전관리 간편 매뉴얼 9쪽, 18쪽 / 연구활동종사자 안전교육 58쪽, 96쪽'
+      },
+      {
+        match: q => q.includes('묽힐') || q.includes('희석') || (q.includes('황산') && (q.includes('누출') || q.includes('대처') || q.includes('물'))),
+        directAnswer: '산을 묽힐 때는 **진한 산에 물을 부으면 절대 안 되며, 반드시 "물에 산을 천천히 저어 주며"** 넣어야 합니다. 황산액이 누출·접촉된 경우에는 즉시 **깨끗한 흐르는 물로 20분 이상 세척**한 뒤 사고를 전파·신고해야 합니다.',
+        keyPoints: [
+          '**산 희석 원칙:** 진한 산에 물을 부으면 급격한 발열로 산이 튀어 위험하므로 **물에 산을 조금씩 천천히 투입**',
+          '**황산 누출·피부 노출 시:** 주변에 사고 전파 → 노출 부위를 **깨끗한 물로 20분 이상 세척**(단, 금수성 물질은 물 세척 금지) → 보호구 착용 후 흡착제·중화제로 방제'
+        ],
+        source: '직업계고등학교 실습실 안전관리 간편 매뉴얼 12쪽 / 연구활동종사자 안전교육 46쪽'
+      },
+      {
+        match: q => q.includes('일상점검') || q.includes('정기점검') || q.includes('정밀안전진단') || (q.includes('점검') && q.includes('주기')),
+        directAnswer: '연구실안전법상 **일상점검은 매일 1회**(육안), **정기점검은 매년 1회 이상**(점검기기 활용), **특별안전점검은 필요시 상시**, **정밀안전진단은 2년마다 1회 이상** 실시해야 합니다.',
+        keyPoints: [
+          '**일상점검 (매일 1회):** 육안으로 연구실 안전관리 실태 점검',
+          '**정기점검 (매년 1회):** 안전점검기기를 이용하여 종합 점검',
+          '**정밀안전진단 (2년마다 1회 이상):** 유해화학물질·유해인자·독성가스 취급 연구실 대상 정기 실시'
+        ],
+        source: '[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육 13쪽'
+      },
+      {
+        match: q => q.includes('화상') || q.includes('데임') || q.includes('세안기') || q.includes('눈 세척') || q.includes('눈에'),
+        directAnswer: '**화상**을 입었을 때는 즉시 **흐르는 찬물로 15~30분 이상 충분히 식히고**(물집은 터뜨리지 않음), **눈에 화학물질이나 티가 들어갔을 때**는 비비지 말고 **눈 세척기(세안기)의 흐르는 물로 15분 이상 세척**한 뒤 병원으로 이송합니다.',
+        keyPoints: [
+          '**화상 응급처치:** 옷을 입은 채 데었을 때는 찬물로 먼저 식힌 후 옷을 벗기거나 가위로 자르며, 물집은 임의로 터뜨리지 않고 소독 거즈로 보호',
+          '**눈 응급처치:** 귀 쪽에서 눈 쪽으로 흐르는 물에 **15분 이상** 눈과 눈꺼풀을 씻어내고 절대 눈을 비비지 않음'
+        ],
+        source: '직업계고등학교 실습실 안전관리 간편 매뉴얼 6쪽, 15~16쪽 / 연구활동종사자 안전교육 78쪽'
+      },
+      {
+        match: q => q.includes('고압멸균기') || q.includes('오토클레이브') || q.includes('autoclave') || q.includes('가스크로마토') || q.includes('gc'),
+        directAnswer: '**고압멸균기(Autoclave)**는 사용 후 **내부 온도와 압력이 충분히 낮아진 뒤 수동밸브로 잔여 증기를 빼고 문을 열어야** 하며, **가스크로마토그래피(GC)**는 **전원 차단 전에 반드시 가스 공급을 먼저 차단**하고 수소 등 운반기체 누출 여부를 확인해야 합니다.',
+        keyPoints: [
+          '**고압멸균기:** 적정 온도로 냉각 전 개방 금지, 증류수 보충 시 냉각 확인, 가연성·인화성 물질 투입 금지',
+          '**가스크로마토그래피(GC):** 고전압 감전 및 칼럼 오븐 고열 주의, 가연성 운반기체(수소) 사용 시 가스누출검지기 설치'
+        ],
+        source: '[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육 61~62쪽'
+      }
+    ];
+
+    // 3단계 [Generation]: 나열식이 아닌 '핵심 단답 결론 + 꼭 필요한 요점 2~4줄'만 간결하게 제시
     function synthesizeStructuredAnswer(userQuery, retrievedDocs) {
       if (!retrievedDocs || retrievedDocs.length === 0) {
         return '질문하신 내용과 일치하는 안전관리 매뉴얼 조항을 찾지 못했습니다. 다른 키워드(예: 화재, 화상, 밀링, 황산, 보호구, 안전점검 등)로 질문해 주세요.';
       }
 
+      const qLower = userQuery.toLowerCase();
+
+      // 1) 자주 묻는 핵심 안전 질문은 1~2문장 직접 결론 + 핵심 요점 2~3개만 깔끔하게 반환
+      for (const rule of DIRECT_QA_RULES) {
+        if (rule.match(qLower)) {
+          return (
+            `### 🎯 핵심 답변\n` +
+            `${rule.directAnswer}\n\n` +
+            `### 📌 핵심 요약\n` +
+            rule.keyPoints.map(p => `- ${p}`).join('\n') +
+            `\n\n> 📖 **출처:** [${rule.source}] *(세부 원문은 아래 출처 보기를 눌러 확인하세요)*`
+          );
+        }
+      }
+
+      // 2) 일반 질문: 페이지 전체를 나열하지 않고, 검색된 청크 내 모든 문장 중 질문 키워드와 가장 일치하는 상위 3~4개 핵심 문장만 추출!
       const qTokens = tokenize(userQuery);
-      const topDocs = retrievedDocs.slice(0, 3);
+      const candidateSentences = [];
 
-      let sections = [];
-      sections.push(`질문하신 **"${userQuery}"**에 대해 실험·실습실 안전관리 매뉴얼에서 확인된 핵심 지침을 정리해 드립니다.\n`);
-
-      topDocs.forEach((doc, idx) => {
+      retrievedDocs.slice(0, 3).forEach((doc, docRank) => {
         const shortName = doc.file_name.includes('직업계고등학교')
           ? '직업계고등학교 실습실 안전관리 간편 매뉴얼'
           : '[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육';
 
-        // 첫 줄([파일명 - N쪽]) 제거 후 핵심 줄 정리
-        const rawLines = doc.content
-          .split('\n')
-          .map(l => l.trim())
-          .filter(l => l.length > 1 && !l.startsWith('[') && !/^-?\s*\d+\s*-?$/.test(l) && !l.includes('실습실(장) 안전관리 간편 매뉴얼'));
+        const lines = doc.content
+          .split(/\n|(?<=\.)\s+/)
+          .map(l => l.replace(/^[❍▶⁍❖✚✓•\-*①②③④⑤]+\s*/, '').trim())
+          .filter(l => l.length >= 6 && !l.startsWith('[') && !/^-?\s*\d+\s*-?$/.test(l) && !l.includes('안전관리 간편 매뉴얼'));
 
-        // 제목 줄과 세부 항목 분리
-        let heading = rawLines[0] || `핵심 안전수칙 ${idx + 1}`;
-        if (heading.length > 55) {
-          heading = `핵심 안전수칙 및 행동요령 (${shortName} ${doc.page}쪽)`;
-        }
-
-        const bodyLines = rawLines.slice(1).length > 0 ? rawLines.slice(1) : rawLines;
-        const cleanBullets = [];
-
-        for (let line of bodyLines) {
-          line = line.replace(/^[❍▶⁍❖✚✓•\-*]+\s*/, '').trim();
-          if (line.length < 3) continue;
-          // 질문 키워드가 포함된 핵심 문장 강조
+        lines.forEach(line => {
+          let sScore = (3 - docRank) * 1.5;
+          const lLower = line.toLowerCase();
           for (const tok of qTokens) {
-            if (tok.length >= 2 && line.includes(tok)) {
-              line = line.replace(new RegExp(`(${tok})`, 'g'), '**$1**');
-              break;
+            if (lLower.includes(tok)) {
+              sScore += 5.0 + Math.min(tok.length, 5);
             }
           }
-          cleanBullets.push(`- ${line}`);
-        }
-
-        if (cleanBullets.length > 0) {
-          sections.push(
-            `### ${idx + 1}. ${heading.replace(/^[❍▶⁍❖✚✓•\-*]+\s*/, '')}\n` +
-            cleanBullets.slice(0, 10).join('\n') +
-            `\n> 📌 **출처:** [${shortName} - ${doc.page}쪽]`
-          );
-        }
+          candidateSentences.push({
+            text: line,
+            score: sScore,
+            source: `${shortName} ${doc.page}쪽`
+          });
+        });
       });
 
-      return sections.join('\n\n');
+      candidateSentences.sort((a, b) => b.score - a.score);
+
+      // 중복 문장 제거 후 상위 4문장만 선택
+      const picked = [];
+      for (const item of candidateSentences) {
+        if (picked.length >= 4) break;
+        if (!picked.some(p => p.text === item.text || p.text.includes(item.text) || item.text.includes(p.text))) {
+          picked.push(item);
+        }
+      }
+
+      if (picked.length === 0) {
+        return '해당 질문에 대한 구체적인 조항을 찾지 못했습니다. 아래 참고 출처 원문을 확인해 주세요.';
+      }
+
+      const mainConclusion = picked[0].text;
+      const extraPoints = picked.slice(1, 4).map(p => `- ${p.text}`);
+      const uniqueSources = [...new Set(picked.map(p => p.source))].join(' / ');
+
+      let out = `### 🎯 핵심 답변\n**${mainConclusion}**\n`;
+      if (extraPoints.length > 0) {
+        out += `\n### 📌 관련 핵심 수칙\n${extraPoints.join('\n')}\n`;
+      }
+      out += `\n> 📖 **출처:** [${uniqueSources}]`;
+      return out;
     }
 
     async function callExternalLLM(apiKey, model, systemInstruction, userPrompt) {
@@ -775,8 +856,10 @@
       ).join('\n\n---\n\n');
       const sysPrompt =
         '너는 직업계고등학교 및 대학 실험·실습실 안전관리 전문 AI 도우미다.\n' +
-        '반드시 아래 제공된 [참고 문서]의 내용을 근거로 정확하고 친절하게 답변하라.\n' +
-        '핵심 안전수칙이나 절차를 읽기 쉽게 항목별로 정리하고 출처 문서명과 페이지 번호를 함께 밝혀라.\n\n' +
+        '문서 내용을 길게 나열하지 말고, 질문자가 묻는 핵심에만 바로 답하라.\n' +
+        '반드시 다음 형식으로 간결하게 답하라:\n' +
+        '1) 첫 문단에 질문에 대한 직접적인 핵심 결론(단답·요약)을 1~2문장으로 명확히 제시할 것.\n' +
+        '2) 꼭 필요한 경우에만 아래에 핵심 요점을 2~3개 불릿으로 짧게 덧붙이고, 출처 문서명과 페이지 번호를 한 줄로 표기할 것.\n\n' +
         `[참고 문서]\n${contextText}`;
 
       // 3. Generation (선택된 모드에 따라 실행)

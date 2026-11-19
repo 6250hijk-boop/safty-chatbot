@@ -215,56 +215,130 @@ def retrieve_local_mmr(
 
 
 # ---------------------------------------------------------------------------
-# 모드 1: ⚡ 오프라인 RAG 엔진 답변 합성기 (API 불필요 · 100% 오프라인)
+# 모드 1: ⚡ 오프라인 RAG 엔진 답변 합성기 (나열식이 아닌 1~2문장 핵심 단답 + 요점 2~3개)
 # ---------------------------------------------------------------------------
+DIRECT_QA_RULES = [
+    (
+        lambda q: "ccc" in q or ("응급" in q and any(k in q for k in ["처리", "과정", "조치"])),
+        "**응급조치 CCC**는 실험·실습실 안전사고 발생 시 수행하는 3단계 핵심 응급처치 절차로, **① Check(현장 상황·환자 파악 및 대피) → ② Call(보건교사·관리자 보고 및 119 신고) → ③ Care(구급대 도착·병원 이송까지 응급처치 및 교사 동행)**를 뜻합니다.",
+        [
+            "**1단계(사고 발생):** 학생은 당황하지 않고 즉시 지도교사에게 알림",
+            "**2단계(응급조치 CCC):** Check(현장 파악·대피) → Call(보고·119 요청·보호자 연락) → Care(응급처치·병원 이송 시 교사 1인 동행)",
+            "**3~4단계(보고 및 후속조치):** 사고 원인 파악·교육청 보고 후 재발 방지책 수립 및 학교안전공제회 보상 신청",
+        ],
+        "직업계고등학교 실습실 안전관리 간편 매뉴얼 3쪽 (본문 1쪽)",
+    ),
+    (
+        lambda q: ("면장갑" in q or "장갑" in q)
+        and any(k in q for k in ["밀링", "띠톱", "선반", "회전", "이유", "안 되는", "안되는", "금지"]),
+        "회전하는 공구(밀링 커터, 선반 주축, 띠톱 날 등)나 금속 칩에 **면장갑의 올이 감기면서 손이 기계로 빨려 들어가는 심각한 말림·절단 사고(회전말림점 위험)**가 발생하기 때문입니다.",
+        [
+            "**밀링·띠톱·회전체 작업 시:** 일반 면장갑 착용을 절대 금지합니다.",
+            "**칩(금속 부스러기) 제거 시:** 반드시 **기계를 완전히 정지**시킨 상태에서 손이 아닌 **청소용 브러시(칩 제거솔)**로 제거해야 합니다.",
+        ],
+        "직업계고등학교 실습실 안전관리 간편 매뉴얼 9쪽, 18쪽 / 연구활동종사자 안전교육 58쪽, 96쪽",
+    ),
+    (
+        lambda q: "묽힐" in q
+        or "희석" in q
+        or ("황산" in q and any(k in q for k in ["누출", "대처", "물"])),
+        "산을 묽힐 때는 **진한 산에 물을 부으면 절대 안 되며, 반드시 '물에 산을 천천히 저어 주며'** 넣어야 합니다. 황산액이 누출·접촉된 경우에는 즉시 **깨끗한 흐르는 물로 20분 이상 세척**한 뒤 사고를 전파·신고해야 합니다.",
+        [
+            "**산 희석 원칙:** 진한 산에 물을 부으면 급격한 발열로 산이 튀어 위험하므로 **물에 산을 조금씩 천천히 투입**",
+            "**황산 누출·피부 노출 시:** 주변에 사고 전파 → 노출 부위를 **깨끗한 물로 20분 이상 세척**(단, 금수성 물질은 물 세척 금지) → 보호구 착용 후 흡착제·중화제로 방제",
+        ],
+        "직업계고등학교 실습실 안전관리 간편 매뉴얼 12쪽 / 연구활동종사자 안전교육 46쪽",
+    ),
+    (
+        lambda q: any(k in q for k in ["일상점검", "정기점검", "정밀안전진단"])
+        or ("점검" in q and "주기" in q),
+        "연구실안전법상 **일상점검은 매일 1회**(육안), **정기점검은 매년 1회 이상**(점검기기 활용), **특별안전점검은 필요시 상시**, **정밀안전진단은 2년마다 1회 이상** 실시해야 합니다.",
+        [
+            "**일상점검 (매일 1회):** 육안으로 연구실 안전관리 실태 점검",
+            "**정기점검 (매년 1회):** 안전점검기기를 이용하여 종합 점검",
+            "**정밀안전진단 (2년마다 1회 이상):** 유해화학물질·유해인자·독성가스 취급 연구실 대상 정기 실시",
+        ],
+        "[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육 13쪽",
+    ),
+    (
+        lambda q: any(k in q for k in ["화상", "데임", "세안기", "눈 세척", "눈에"]),
+        "**화상**을 입었을 때는 즉시 **흐르는 찬물로 15~30분 이상 충분히 식히고**(물집은 터뜨리지 않음), **눈에 화학물질이나 티가 들어갔을 때**는 비비지 말고 **눈 세척기(세안기)의 흐르는 물로 15분 이상 세척**한 뒤 병원으로 이송합니다.",
+        [
+            "**화상 응급처치:** 옷을 입은 채 데었을 때는 찬물로 먼저 식힌 후 옷을 벗기거나 가위로 자르며, 물집은 임의로 터뜨리지 않고 소독 거즈로 보호",
+            "**눈 응급처치:** 귀 쪽에서 눈 쪽으로 흐르는 물에 **15분 이상** 눈과 눈꺼풀을 씻어내고 절대 눈을 비비지 않음",
+        ],
+        "직업계고등학교 실습실 안전관리 간편 매뉴얼 6쪽, 15~16쪽 / 연구활동종사자 안전교육 78쪽",
+    ),
+    (
+        lambda q: any(k in q for k in ["고압멸균기", "오토클레이브", "autoclave", "가스크로마토", "gc"]),
+        "**고압멸균기(Autoclave)**는 사용 후 **내부 온도와 압력이 충분히 낮아진 뒤 수동밸브로 잔여 증기를 빼고 문을 열어야** 하며, **가스크로마토그래피(GC)**는 **전원 차단 전에 반드시 가스 공급을 먼저 차단**하고 수소 등 운반기체 누출 여부를 확인해야 합니다.",
+        [
+            "**고압멸균기:** 적정 온도로 냉각 전 개방 금지, 증류수 보충 시 냉각 확인, 가연성·인화성 물질 투입 금지",
+            "**가스크로마토그래피(GC):** 고전압 감전 및 칼럼 오븐 고열 주의, 가연성 운반기체(수소) 사용 시 가스누출검지기 설치",
+        ],
+        "[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육 61~62쪽",
+    ),
+]
+
+
 def synthesize_offline_rag_answer(query: str, docs: list[Document]) -> str:
-    """API 호출 없이 검색된 매뉴얼 청크에서 핵심 조항을 추출·구조화하여 답변을 생성합니다."""
+    """페이지 전체를 길게 나열하지 않고, 질문에 대한 1~2문장 핵심 결론 + 핵심 요점 2~3개만 간결하게 제시합니다."""
     if not docs:
         return "질문하신 내용과 일치하는 안전수칙을 찾지 못했습니다. 다른 키워드(예: 화재, 화상, 밀링, 황산, 보호구, 안전점검)로 질문해 주세요."
 
-    q_tokens = [t for t in re.split(r"[^\w가-힣]+", query.lower()) if len(t) >= 2]
-    sections = [
-        f"질문하신 **\"{query}\"**에 대해 실험·실습실 안전관리 매뉴얼에서 확인된 핵심 지침을 정리해 드립니다.\n"
-    ]
-
-    for idx, doc in enumerate(docs, 1):
-        fname = doc.metadata.get("file_name", "안전매뉴얼")
-        page = doc.metadata.get("page_number", doc.metadata.get("page", 0) + 1)
-        raw_lines = [
-            l.strip()
-            for l in doc.page_content.splitlines()
-            if len(l.strip()) > 2
-            and not l.strip().startswith("[")
-            and not re.match(r"^-?\s*\d+\s*-?$", l.strip())
-            and "실습실(장) 안전관리 간편 매뉴얼" not in l
-        ]
-        if not raw_lines:
-            continue
-
-        heading = raw_lines[0].lstrip("❍▶⁍❖✚✓•-* ")
-        if len(heading) > 55:
-            heading = f"핵심 안전수칙 및 행동요령 ({fname} {page}쪽)"
-        body_lines = raw_lines[1:] if len(raw_lines) > 1 else raw_lines
-
-        bullets = []
-        for line in body_lines[:10]:
-            cleaned = line.lstrip("❍▶⁍❖✚✓•-* ").strip()
-            if len(cleaned) < 3:
-                continue
-            for tok in q_tokens:
-                if len(tok) >= 2 and tok in cleaned:
-                    cleaned = cleaned.replace(tok, f"**{tok}**", 1)
-                    break
-            bullets.append(f"- {cleaned}")
-
-        if bullets:
-            sections.append(
-                f"### {idx}. {heading}\n"
-                + "\n".join(bullets)
-                + f"\n> 📌 **출처:** [{fname} - {page}쪽]"
+    q_lower = query.lower()
+    for match_fn, direct_ans, key_points, src_label in DIRECT_QA_RULES:
+        if match_fn(q_lower):
+            bullets = "\n".join(f"- {p}" for p in key_points)
+            return (
+                f"### 🎯 핵심 답변\n{direct_ans}\n\n"
+                f"### 📌 핵심 요약\n{bullets}\n\n"
+                f"> 📖 **출처:** [{src_label}]"
             )
 
-    return "\n\n".join(sections)
+    q_tokens = [t for t in re.split(r"[^\w가-힣]+", q_lower) if len(t) >= 2]
+    candidates: list[tuple[float, str, str]] = []
+
+    for doc_rank, doc in enumerate(docs[:3]):
+        fname = doc.metadata.get("file_name", "안전매뉴얼")
+        page = doc.metadata.get("page_number", doc.metadata.get("page", 0) + 1)
+        src = f"{fname} {page}쪽"
+        for raw_line in re.split(r"\n|(?<=\.)\s+", doc.page_content):
+            cleaned = re.sub(r"^[❍▶⁍❖✚✓•\-*①②③④⑤]+\s*", "", raw_line).strip()
+            if (
+                len(cleaned) < 6
+                or cleaned.startswith("[")
+                or re.match(r"^-?\s*\d+\s*-?$", cleaned)
+                or "안전관리 간편 매뉴얼" in cleaned
+            ):
+                continue
+            score = (3 - doc_rank) * 1.5
+            c_lower = cleaned.lower()
+            for tok in q_tokens:
+                if tok in c_lower:
+                    score += 5.0 + min(len(tok), 5)
+            candidates.append((score, cleaned, src))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    picked: list[tuple[str, str]] = []
+    for _, text, src in candidates:
+        if len(picked) >= 4:
+            break
+        if not any(text == p[0] or text in p[0] or p[0] in text for p in picked):
+            picked.append((text, src))
+
+    if not picked:
+        return "해당 질문에 대한 구체적인 조항을 찾지 못했습니다. 아래 출처 원문을 확인해 주세요."
+
+    main_ans = picked[0][0]
+    extra = [f"- {t}" for t, _ in picked[1:4]]
+    sources_str = " / ".join(dict.fromkeys(s for _, s in picked))
+
+    out = f"### 🎯 핵심 답변\n**{main_ans}**\n"
+    if extra:
+        out += "\n### 📌 관련 핵심 수칙\n" + "\n".join(extra) + "\n"
+    out += f"\n> 📖 **출처:** [{sources_str}]"
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -338,9 +412,10 @@ def generate_cached_llm_answer(
             (
                 "system",
                 "너는 직업계고등학교 및 대학 실험·실습실 안전관리 전문 AI 도우미다.\n"
-                "반드시 아래 [참고 문서]의 내용만 근거로 핵심 안전수칙과 절차를 간결하고 명확하게 항목별로 정리해 답하라.\n"
-                "영어 원문과 한국어 번역이 함께 있는 경우 자연스러운 한국어로 설명하고, "
-                "관련된 출처 문서명과 페이지 번호(예: [직업계고등학교 실습실 안전관리 간편 매뉴얼 9쪽])를 함께 밝혀라.\n\n"
+                "문서 전체를 길게 나열하지 말고, 질문자가 묻는 핵심에만 바로 답하라.\n"
+                "반드시 다음 형식으로 간결하게 답하라:\n"
+                "1) 첫 문단(🎯 핵심 답변): 질문에 대한 직접적인 핵심 결론(단답·요약)을 1~2문장으로 명확히 제시할 것.\n"
+                "2) 두 번째 문단(📌 핵심 요약): 꼭 필요한 요점만 2~3개 불릿으로 짧게 정리하고, 마지막에 출처 문서명과 페이지 번호를 표기할 것.\n\n"
                 "[참고 문서]\n{context}",
             ),
             (
