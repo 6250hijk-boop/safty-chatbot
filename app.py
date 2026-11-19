@@ -47,67 +47,94 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# 로컬 Pre-Retrieval (Query Rewrite) 규칙 (0크레딧)
+# 로컬 Pre-Retrieval (Query Rewrite) - 질문 의도를 왜곡하지 않고 맥락 복원 + 핵심 키워드만 정제
 # ---------------------------------------------------------------------------
-DOMAIN_REWRITE_RULES = [
-    (
-        ["ccc", "응급조치", "응급상황", "처리 과정", "처리과정", "사고 발생"],
-        "실험·실습실 안전사고 발생 시 응급상황 처리 과정 4단계 및 응급조치 CCC(Check, Call, Care) 행동요령",
-    ),
-    (
-        ["면장갑", "밀링", "띠톱", "선반", "절삭", "회전", "말림"],
-        "선반·밀링·띠톱 등 회전체 기계 작업 시 면장갑 착용 금지 이유(회전말림점 위험) 및 금속 칩 제거 안전수칙",
-    ),
-    (
-        ["황산", "산을 묽힐", "희석", "시약병", "누출", "산이나 알칼리"],
-        "산(황산 등)을 묽히는 올바른 순서(물에 산을 천천히 투입) 및 황산액 시약병 파손·누출 시 20분 이상 세척 대처 방안",
-    ),
-    (
-        ["일상점검", "정기점검", "특별안전점검", "정밀안전진단", "점검 주기", "점검주기", "실시주기"],
-        "연구실안전법상 안전점검(일상점검 매일 1회, 정기점검 매년 1회, 특별안전점검) 및 정밀안전진단(2년마다 1회) 실시 주기",
-    ),
-    (
-        ["화상", "데임", "물집", "뜨거운"],
-        "실험·실습실 화상 발생 시 응급처치 요령(15~30분 찬물 냉각, 물집 보존) 및 화상 예방 안전수칙",
-    ),
-    (
-        ["눈에", "세안기", "눈 세척", "눈세척", "칩이나 티"],
-        "눈에 화학물질이나 칩·티가 들어갔을 때 눈 세척기(세안기) 15분 이상 세척 및 응급처치 요령",
-    ),
-    (
-        ["고압멸균기", "오토클레이브", "autoclave", "가스크로마토", "gc", "무균실험대", "클린벤치"],
-        "실험실 주요 기기(고압멸균기 Autoclave, 가스크로마토그래피 GC, 무균실험대 Clean bench) 위험요소 및 안전수칙",
-    ),
-    (
-        ["소화기", "화재", "불이야", "119", "전기화재", "전기 화재", "감전"],
-        "실험·실습실 화재·폭발 시 대피 및 소화기 사용요령과 감전·전기화재(C급 소화기, 물 분사 금지) 대처 방안",
-    ),
-    (
-        ["가스", "아세틸렌", "수소", "산소", "용접", "도색", "색상"],
-        "가스 실험·실습실 가연성·독성가스 안전관리, 가스 용기별 도색 색상 및 산소·아세틸렌 용접 안전수칙",
-    ),
-    (
-        ["폐액", "폐기물", "폐시약", "혼합", "스티커", "80%"],
-        "실험실 화학물질 폐기물·폐액 분류(산·중성·알칼리·할로겐) 및 안전관리(80% 초과 금지, 혼합 금지)",
-    ),
+TERM_SYNONYMS = [
+    (r"\bccc\b|응급조치\s*ccc", "응급조치 CCC(Check·Call·Care)", ["응급상황 처리 과정", "Check", "Call", "Care"]),
+    (r"오토클레이브|autoclave|고압\s*멸균기", "고압멸균기(Autoclave)", ["고압멸균기", "autoclave", "수동밸브", "증기"]),
+    (r"클린\s*벤치|clean\s*bench|무균\s*실험대|무균\s*작업대", "무균실험대(Clean bench)", ["무균실험대", "Clean bench", "UV램프"]),
+    (r"\bgc\b|가스\s*크로마토", "가스크로마토그래피(GC)", ["가스크로마토그래피", "운반기체", "칼럼 오븐"]),
+    (r"\bmsds\b|\bghs\b|물질\s*안전\s*보건", "물질안전보건자료(GHS-MSDS)", ["MSDS", "GHS", "유해성·위험성"]),
+    (r"\bbsl\b|생물\s*안전\s*등급", "생물안전등급(BSL 1~4등급)", ["생물안전", "BSL", "밀폐"]),
+    (r"\bbsc\b|생물\s*안전\s*작업대", "생물안전작업대(BSC)", ["생물안전작업대", "BSC", "헤파 필터"]),
+    (r"\blmo\b|유전자\s*변형", "유전자변형생물체(LMO)", ["유전자변형생물체", "LMO"]),
+    (r"면장갑", "회전체 작업 시 면장갑 착용 금지", ["면장갑", "밀링", "띠톱", "회전말림점"]),
+    (r"세안기|눈\s*세척", "눈 세척기(세안기)", ["눈 세척기", "세안기", "15분 이상"]),
+    (r"사전\s*유해\s*인자|r&dsa", "사전유해인자위험분석(R&DSA)", ["사전유해인자위험분석", "안전현황 분석", "비상조치계획"]),
+    (r"일상\s*점검|정기\s*점검|정밀\s*안전\s*진단", "연구실 안전점검 및 정밀안전진단", ["일상점검", "정기점검", "정밀안전진단", "실시주기"]),
 ]
 
+STOP_SUFFIX_RE = re.compile(
+    r"(은|는|이|가|을|를|에|에서|으로|로|과|와|도|만|의|에게|께|한테|부터|까지|이란|란|에는|에서는|할\s*때|할때|시에|시에는|대해|대한|관련|어떻게|어떡해|어케|무엇인가요|무엇인지|뭔가요|뭔지|뭐야|뭔데|알려줘|알려주세요|설명해줘|설명해주세요|해줘|해주세요|되나요|돼요|할까요|있나요|있어|이유는|이유가|왜)$"
+)
 
-def local_query_rewrite(query: str, history_messages: list[dict]) -> str:
-    """API 크레딧 소모 없이 질문을 검색 최적화 문장으로 재작성합니다."""
-    contextual = query
-    if len(query) <= 16 and len(history_messages) >= 2:
+
+def extract_core_keywords(text: str) -> list[str]:
+    cleaned = re.sub(r"[?!.,~\"'()\[\]{}]", " ", text or "")
+    cleaned = re.sub(
+        r"(어떻게|어떡해|어케|무엇인가요|뭔가요|뭐야|알려줘|알려주세요|설명해줘|설명해주세요|해줘|해주세요|되나요|있나요|있어)",
+        " ",
+        cleaned,
+    ).strip()
+    keywords: list[str] = []
+    for w in cleaned.split():
+        if len(w) < 2:
+            continue
+        stripped = STOP_SUFFIX_RE.sub("", w).strip()
+        cand = stripped if len(stripped) >= 2 else w
+        if cand not in {"그냥", "그러면", "그럼", "그리고", "혹시", "만약", "어떤", "무슨", "얼마나", "무엇"}:
+            if cand not in keywords:
+                keywords.append(cand)
+    return keywords
+
+
+def local_query_rewrite(query: str, history_messages: list[dict]) -> tuple[str, str]:
+    """
+    사용자의 원래 질문 의도를 다른 주제로 덮어쓰지 않고:
+    1) 대명사/후속 질문인 경우에만 직전 대화 주제어를 복원하고,
+    2) 구어체를 명확한 검색 질문으로 정돈하며,
+    3) 질문에 실제로 포함된 전문용어/약어와 핵심 키워드만 추출해 검색 정확도를 높입니다.
+    반환값: (화면 표시용 재작성 질문, 실제 검색용 확장 쿼리)
+    """
+    base = query.strip()
+    prev_keywords: list[str] = []
+
+    needs_context = bool(
+        re.match(r"^(그거|그건|그때|거기|이\s*경우|그럼|그러면|여기서|또|추가로)", base)
+    ) or len(base) <= 10
+    if needs_context and len(history_messages) >= 2:
         prev_user = next(
             (m["content"] for m in reversed(history_messages[:-1]) if m["role"] == "user"),
             "",
         )
-        contextual = f"{prev_user} {query}".strip()
+        prev_keywords = extract_core_keywords(prev_user)[:3]
 
-    q_lower = contextual.lower()
-    for keywords, rewritten in DOMAIN_REWRITE_RULES:
-        if any(k in q_lower for k in keywords):
-            return f"{query} ({rewritten})"
-    return f"{contextual} 실험·실습실 안전수칙 및 대처요령"
+    normalized = base
+    normalized = re.sub(r"어케\s*해\??", "어떻게 대처해야 하나요?", normalized)
+    normalized = re.sub(r"어떡해\??", "어떻게 대처해야 하나요?", normalized)
+    normalized = re.sub(r"뭐야\??$", "무엇인가요?", normalized)
+    normalized = re.sub(r"뭔데\??$", "무엇인가요?", normalized)
+    normalized = re.sub(r"왜\s*안\s*돼\??$", "금지하는 이유는 무엇인가요?", normalized)
+    normalized = re.sub(r"알려줘\.?$", "핵심 내용과 기준은 무엇인가요?", normalized)
+    normalized = re.sub(r"설명해줘\.?$", "상세 내용과 절차는 무엇인가요?", normalized)
+
+    if prev_keywords:
+        normalized = f"[{' · '.join(prev_keywords)}] {normalized}"
+
+    matched_canonicals: list[str] = []
+    boost_terms: list[str] = []
+    for pattern, canonical, boosts in TERM_SYNONYMS:
+        if re.search(pattern, normalized, flags=re.IGNORECASE):
+            matched_canonicals.append(canonical)
+            boost_terms.extend(boosts)
+
+    core_kws = list(dict.fromkeys(prev_keywords + extract_core_keywords(base)))
+    kw_note = f" (핵심키워드: {', '.join(core_kws[:5])})" if core_kws else ""
+    syn_note = f" [{', '.join(matched_canonicals)}]" if matched_canonicals else ""
+
+    display_rewritten = f"{normalized}{syn_note}{kw_note}"
+    effective_search = f"{base} {' '.join(prev_keywords)} {' '.join(core_kws)} {' '.join(boost_terms)}".strip()
+    return display_rewritten, effective_search
 
 
 # ---------------------------------------------------------------------------
@@ -783,14 +810,17 @@ if query:
         history_text = format_chat_history(st.session_state.messages[:-1])
 
         # 1. Pre-Retrieval (Query Rewrite)
-        search_query = local_query_rewrite(query, st.session_state.messages) if use_rewrite else query
+        if use_rewrite:
+            display_rewritten, search_query = local_query_rewrite(query, st.session_state.messages)
+        else:
+            display_rewritten, search_query = query, query
 
         # 2. Retrieval (선택된 PDF 범위 내에서 로컬 하이브리드 MMR 검색)
         retrieved_docs = retrieve_local_mmr(filtered_chunks, search_query, top_k, search_type)
         context_text = format_docs_compact(retrieved_docs)
 
-        if use_rewrite and search_query != query:
-            st.caption(f"🔍 **Query Rewrite 검색어:** `{search_query}`")
+        if use_rewrite and display_rewritten != query:
+            st.caption(f"🔍 **Query Rewrite 검색어:** `{display_rewritten}`")
 
         # 3. 선택된 모드별 답변 생성
         used_badge = ""
@@ -860,7 +890,7 @@ if query:
                 "role": "assistant",
                 "content": answer,
                 "engine_badge": used_badge,
-                "rewritten_query": search_query if (use_rewrite and search_query != query) else None,
+                "rewritten_query": display_rewritten if (use_rewrite and display_rewritten != query) else None,
                 "sources": sources_info,
             }
         )

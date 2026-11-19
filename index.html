@@ -487,48 +487,43 @@
       document.getElementById('pdfUploadInput').value = '';
     }
 
-    // 안전 도메인 동의어 및 Pre-Retrieval Query Rewrite 사전
-    const DOMAIN_REWRITE_RULES = [
-      { keywords: ['ccc', '응급조치', '응급상황', '처리 과정', '처리과정', '사고 발생', '사고발생'],
-        rewrite: '실험·실습실 안전사고 발생 시 응급상황 처리 과정 4단계 및 응급조치 CCC(Check, Call, Care) 행동요령',
-        boostTerms: ['응급조치', 'ccc', 'check', 'call', 'care', '후속조치', '응급상황'] },
-      { keywords: ['면장갑', '밀링', '띠톱', '선반', '절삭', '회전', '말림', '장갑'],
-        rewrite: '선반·밀링·띠톱 등 회전체 기계 작업 시 면장갑 착용 금지 이유(회전말림점 위험) 및 금속 칩 제거 안전수칙',
-        boostTerms: ['면장갑', '밀링', '띠톱', '주축', '회전말림점', '브러시', '칩'] },
-      { keywords: ['황산', '산을 묽힐', '희석', '시약병', '누출', '산이나 알칼리', '화학물질 접촉'],
-        rewrite: '산(황산 등)을 묽히는 올바른 순서(물에 산을 천천히 투입) 및 황산액 시약병 파손·누출 시 20분 이상 세척 대처 방안',
-        boostTerms: ['황산', '묽힐', '진한 산', '누출', '20분 이상', '금수성', '흡착제'] },
-      { keywords: ['일상점검', '정기점검', '특별안전점검', '정밀안전진단', '점검 주기', '점검주기', '실시주기'],
-        rewrite: '연구실안전법상 안전점검(일상점검 매일 1회, 정기점검 매년 1회, 특별안전점검) 및 정밀안전진단(2년마다 1회) 실시 주기',
-        boostTerms: ['일상점검', '정기점검', '특별안전점검', '정밀안전진단', '매일 1회', '매년 1회', '2년마다'] },
-      { keywords: ['화상', '데임', '물집', '뜨거운'],
-        rewrite: '실험·실습실 화상 발생 시 응급처치 요령(15~30분 찬물 냉각, 물집 보존, 옷 위 냉각) 및 화상 예방 안전수칙',
-        boostTerms: ['화상', '15~30분', '물집', '찬물', '오븐', '내열'] },
-      { keywords: ['눈에', '세안기', '눈 세척', '눈세척', '칩이나 티'],
-        rewrite: '눈에 화학물질이나 칩·티가 들어갔을 때 눈 세척기(세안기) 15분 이상 세척 및 응급처치 요령',
-        boostTerms: ['눈 세척기', '세안기', '15분 이상', '눈에 칩이나 티', '귀 쪽에서 눈 쪽'] },
-      { keywords: ['고압멸균기', '오토클레이브', 'autoclave', '가스크로마토', 'gc', '무균실험대', 'clean bench', '클린벤치'],
-        rewrite: '실험실 주요 기기(고압멸균기 Autoclave, 가스크로마토그래피 GC, 무균실험대 Clean bench) 위험요소 및 안전수칙',
-        boostTerms: ['고압멸균기', 'autoclave', '가스크로마토그래피', '무균실험대', '냉각', '수동밸브', 'uv램프'] },
-      { keywords: ['소화기', '화재', '불이야', '119', '전기화재', '전기 화재', '감전'],
-        rewrite: '실험·실습실 화재·폭발 시 대피 및 소화기 사용요령과 감전·전기화재(C급 소화기, 물 분사 금지) 대처 방안',
-        boostTerms: ['화재신고', '소화기', '화재대피', '감전', '절연봉', 'c급 소화기', '물 분사 금지'] },
-      { keywords: ['가스', '아세틸렌', '수소', '산소', '용접', '도색', '색상'],
-        rewrite: '가스 실험·실습실 가연성·독성가스 안전관리, 가스 용기별 도색 색상 및 산소·아세틸렌 용접 안전수칙',
-        boostTerms: ['가연성 가스', '도색의 색상', '아세틸렌', '수소', '산소 밸브', '역화'] },
-      { keywords: ['폐액', '폐기물', '폐시약', '혼합', '스티커', '80%'],
-        rewrite: '실험실 화학물질 폐기물·폐액 분류(산·중성·알칼리·할로겐) 및 안전관리(80% 초과 금지, 혼합 금지)',
-        boostTerms: ['폐액', '폐기물', '할로겐', '80%', '혼합금지', '폐시약'] },
-      { keywords: ['보호구', '마스크', '방진', '방독', '보안경', '고글', '보안면', '안전화', '귀마개', '85'],
-        rewrite: '연구실 주요 안전 보호구(호흡용 방진·방독마스크, 보안경·고글·보안면, 보호장갑, 안전화, 85dB 청력보호구) 착용 기준',
-        boostTerms: ['방독마스크', '방진마스크', '보안경', '보안면', '니트릴', '안전화', '85 db'] },
-      { keywords: ['생물', 'bsl', '등급', '생물안전', '교상', '주사기', '동물'],
-        rewrite: '생물 실험실 안전관리 등급(BSL 1~4등급), 생물안전작업대(BSC) 비교 및 주사기 찔림·동물 교상 응급처치',
-        boostTerms: ['생물안전', 'bsl', 'bsc', '주사기', '동물 교상', '파상풍'] },
-      { keywords: ['교육', '훈련', '신규교육', '정기교육', '건강검진', '보험', '요양급여', '사전유해인자'],
-        rewrite: '연구실안전법상 연구활동종사자 안전교육·훈련 시간, 특수건강검진 주기, 보험가입 보상한도(요양급여 20억원) 및 사전유해인자위험분석',
-        boostTerms: ['신규교육', '정기교육', '특수건강검진', '요양급여', '20억원', '사전유해인자위험분석'] }
+    // 전문용어·약어 동의어 사전 (사용자 질문의 원래 의도를 바꾸지 않고 정확한 검색어만 보강)
+    const TERM_SYNONYMS = [
+      { match: /\bccc\b|응급조치\s*ccc/i, canonical: '응급조치 CCC(Check·Call·Care)', boost: ['응급상황 처리 과정', 'Check', 'Call', 'Care'] },
+      { match: /오토클레이브|autoclave|고압\s*멸균기/i, canonical: '고압멸균기(Autoclave)', boost: ['고압멸균기', 'autoclave', '수동밸브', '증기'] },
+      { match: /클린\s*벤치|clean\s*bench|무균\s*실험대|무균\s*작업대/i, canonical: '무균실험대(Clean bench)', boost: ['무균실험대', 'Clean bench', 'UV램프'] },
+      { match: /\bgc\b|가스\s*크로마토/i, canonical: '가스크로마토그래피(GC)', boost: ['가스크로마토그래피', '운반기체', '칼럼 오븐'] },
+      { match: /\bmsds\b|\bghs\b|물질\s*안전\s*보건/i, canonical: '물질안전보건자료(GHS-MSDS)', boost: ['MSDS', 'GHS', '유해성·위험성'] },
+      { match: /\bbsl\b|생물\s*안전\s*등급/i, canonical: '생물안전등급(BSL 1~4등급)', boost: ['생물안전', 'BSL', '밀폐'] },
+      { match: /\bbsc\b|생물\s*안전\s*작업대/i, canonical: '생물안전작업대(BSC)', boost: ['생물안전작업대', 'BSC', '헤파 필터'] },
+      { match: /\blmo\b|유전자\s*변형/i, canonical: '유전자변형생물체(LMO)', boost: ['유전자변형생물체', 'LMO'] },
+      { match: /면장갑/i, canonical: '회전체 작업 시 면장갑 착용 금지', boost: ['면장갑', '밀링', '띠톱', '회전말림점'] },
+      { match: /세안기|눈\s*세척/i, canonical: '눈 세척기(세안기)', boost: ['눈 세척기', '세안기', '15분 이상'] },
+      { match: /사전\s*유해\s*인자|r&dsa/i, canonical: '사전유해인자위험분석(R&DSA)', boost: ['사전유해인자위험분석', '안전현황 분석', '비상조치계획'] },
+      { match: /일상\s*점검|정기\s*점검|정밀\s*안전\s*진단/i, canonical: '연구실 안전점검 및 정밀안전진단', boost: ['일상점검', '정기점검', '정밀안전진단', '실시주기'] }
     ];
+
+    // 한국어 불용어/어미 제거 및 핵심 명사·키워드 추출
+    const STOP_SUFFIXES = /(은|는|이|가|을|를|에|에서|으로|로|과|와|도|만|의|에게|께|한테|부터|까지|이란|란|에는|에서는|이란게|이라는게|할\s*때|할때|시에|시에는|대해|대한|관련|어떻게|어떡해|어케|무엇인가요|무엇인지|뭔가요|뭔지|뭐야|뭔데|알려줘|알려주세요|설명해줘|설명해주세요|해줘|해주세요|되나요|돼요|되니|할까요|할까|있나요|있어|있을까요|이유는|이유가|왜)$/g;
+
+    function extractCoreKeywords(text) {
+      const cleaned = (text || '')
+        .replace(/[?!.,~"'()\[\]{}]/g, ' ')
+        .replace(/(어떻게|어떡해|어케|무엇인가요|뭔가요|뭐야|알려줘|알려주세요|설명해줘|설명해주세요|해줘|해주세요|되나요|있나요|있어)/g, ' ')
+        .trim();
+
+      const rawWords = cleaned.split(/\s+/).filter(w => w.length >= 2);
+      const keywords = [];
+      for (const w of rawWords) {
+        const stripped = w.replace(STOP_SUFFIXES, '').trim();
+        if (stripped.length >= 2 && !['그냥', '그러면', '그럼', '그리고', '혹시', '만약', '어떤', '무슨', '얼마나'].includes(stripped)) {
+          keywords.push(stripped);
+        } else if (w.length >= 2 && !['어떻게', '무엇', '알려줘', '해줘', '뭐야'].includes(w)) {
+          keywords.push(w);
+        }
+      }
+      return [...new Set(keywords)];
+    }
 
     function onEngineModeChange(mode) {
       document.getElementById('modeInfoOffline').classList.toggle('hidden', mode !== 'offline_rag');
@@ -626,35 +621,49 @@
       handleChatSubmit(new Event('submit'));
     }
 
-    // 1단계 [Pre-Retrieval]: 질문 재작성 (Query Rewrite)
+    // 1단계 [Pre-Retrieval]: 질문 의도를 왜곡하지 않고 맥락 복원 + 핵심 키워드 정제만 수행하는 스마트 Query Rewriter
     function rewriteQueryLocal(rawQuery) {
-      const qLower = rawQuery.toLowerCase();
-      let matchedRewrites = [];
-      let boostTerms = [];
+      let baseText = rawQuery.trim();
+      let prevContextKeywords = [];
 
-      // 이전 대화 맥락 반영 (짧은 후속 질문인 경우 이전 질문 키워드 결합)
-      let contextualQuery = rawQuery;
-      if (rawQuery.length <= 16 && chatHistory.length >= 2) {
-        const prevUser = chatHistory[chatHistory.length - 2]?.content || '';
-        contextualQuery = `${prevUser} ${rawQuery}`;
+      // 1) 대명사("그거", "그때", "거기", "이 경우")나 짧은 후속 질문인 경우에만 직전 질문의 핵심 주제어 결합
+      const needsContext = /^(그거|그건|그때|거기|이\s*경우|그럼|그러면|여기서|또|추가로)/.test(baseText) || baseText.length <= 10;
+      if (needsContext && chatHistory.length >= 2) {
+        const prevUserMsg = [...chatHistory].reverse().find(m => m.role === 'user')?.content || '';
+        prevContextKeywords = extractCoreKeywords(prevUserMsg).slice(0, 3);
       }
 
-      for (const rule of DOMAIN_REWRITE_RULES) {
-        if (rule.keywords.some(k => contextualQuery.toLowerCase().includes(k))) {
-          matchedRewrites.push(rule.rewrite);
-          boostTerms.push(...rule.boostTerms);
+      // 2) 구어체 어미를 명확한 검색 질문 형태로 정돈 (원래 단어와 의도는 100% 보존)
+      let normalizedQuestion = baseText
+        .replace(/어케\s*해\??/g, '어떻게 대처해야 하나요?')
+        .replace(/어떡해\??/g, '어떻게 대처해야 하나요?')
+        .replace(/뭐야\??$/g, '무엇인가요?')
+        .replace(/뭔데\??$/g, '무엇인가요?')
+        .replace(/왜\s*안\s*돼\??$/g, '금지하는 이유는 무엇인가요?')
+        .replace(/알려줘\.?$/g, '핵심 내용과 기준은 무엇인가요?')
+        .replace(/설명해줘\.?$/g, '상세 내용과 절차는 무엇인가요?');
+
+      if (prevContextKeywords.length > 0) {
+        normalizedQuestion = `[${prevContextKeywords.join(' · ')}] ${normalizedQuestion}`;
+      }
+
+      // 3) 질문 내에 실제로 등장한 전문용어/약어만 동의어 확장 (엉뚱한 주제로 절대 덮어쓰지 않음!)
+      const matchedSynonyms = [];
+      const boostTerms = [];
+      for (const item of TERM_SYNONYMS) {
+        if (item.match.test(normalizedQuestion)) {
+          matchedSynonyms.push(item.canonical);
+          boostTerms.push(...item.boost);
         }
       }
 
-      if (matchedRewrites.length > 0) {
-        return {
-          rewritten: matchedRewrites[0],
-          searchQuery: `${contextualQuery} ${matchedRewrites.join(' ')} ${boostTerms.join(' ')}`
-        };
-      }
+      const coreKeywords = [...new Set([...prevContextKeywords, ...extractCoreKeywords(baseText)])];
+      const keywordSummary = coreKeywords.length > 0 ? ` (핵심키워드: ${coreKeywords.slice(0, 5).join(', ')})` : '';
+      const synonymNote = matchedSynonyms.length > 0 ? ` [${matchedSynonyms.join(', ')}]` : '';
+
       return {
-        rewritten: `${rawQuery} 관련 실험·실습실 안전수칙 및 대처요령`,
-        searchQuery: contextualQuery
+        rewritten: `${normalizedQuestion}${synonymNote}${keywordSummary}`,
+        searchQuery: `${baseText} ${prevContextKeywords.join(' ')} ${coreKeywords.join(' ')} ${boostTerms.join(' ')}`.trim()
       };
     }
 
@@ -757,7 +766,7 @@
         source: '직업계고등학교 실습실 안전관리 간편 매뉴얼 3쪽 (본문 1쪽)'
       },
       {
-        match: q => (q.includes('면장갑') || q.includes('장갑')) && (q.includes('밀링') || q.includes('띠톱') || q.includes('선반') || q.includes('회전') || q.includes('이유') || q.includes('안 되는') || q.includes('안되는') || q.includes('금지') || q.includes('드릴')),
+        match: q => q.includes('면장갑') || (q.includes('장갑') && (q.includes('밀링') || q.includes('띠톱') || q.includes('선반') || q.includes('회전') || q.includes('드릴'))),
         directAnswer: '선반·밀링·드릴·띠톱 등 **회전하는 기계 작업 시 면장갑을 끼면, 고속 회전하는 날이나 금속 칩에 장갑의 섬유 올이 살짝만 닿아도 순식간에 감겨 손 전체가 기계로 빨려 들어가는 치명적인 회전말림 사고(절단·골절)**가 발생하기 때문입니다.',
         explanation: '기계 안전공학에서 고속 회전하는 주축이나 커터 부위는 **"회전말림점(Rotating Entanglement Point)"**과 **"절단점"**에 해당합니다. 면장갑은 실(섬유)이 느슨하게 짜여 있어 찢어지지 않고 회전체에 감기면서 손가락을 기계 속으로 끌어당기므로 맨손보다 훨씬 위험합니다. 실제 대학 및 직업계고 실습실 사고 사례에서도 밀링·테이블톱 작업 중 면장갑이 말려 들어가 손가락이 절단되거나 골절된 사고가 가장 빈번하게 발생했습니다.',
         keyPoints: [
