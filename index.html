@@ -173,7 +173,7 @@
   <!-- 메인 채팅 영역 -->
   <main class="flex-1 flex flex-col h-full bg-slate-950">
     <!-- 상단 헤더 -->
-    <header class="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+    <header class="px-4 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-2">
       <div class="flex items-center gap-3">
         <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700">
           ☰
@@ -183,13 +183,40 @@
             <span>🦺 실험·실습실 안전관리 AI 챗봇</span>
             <span id="headerModeBadge" class="hidden sm:inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">⚡ 오프라인 RAG 버전</span>
           </h1>
-          <p class="text-xs text-slate-400">전주대학교 AI융합프로젝트 · 실습실 안전관리 매뉴얼 RAG 질의응답 시스템</p>
+          <p class="text-xs text-slate-400">전주대학교 AI융합프로젝트 · PDF 추가 업로드 및 다중 문서 RAG 검색 지원</p>
         </div>
       </div>
-      <button onclick="toggleSidebar()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700">
-        ⚙️ RAG 설정
-      </button>
+      <div class="flex items-center gap-2">
+        <label for="pdfUploadInput" class="cursor-pointer text-xs font-semibold px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white shadow transition flex items-center gap-1.5">
+          <span>📄 + PDF 추가 업로드</span>
+        </label>
+        <button onclick="toggleSidebar()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-700">
+          ⚙️ 설정
+        </button>
+      </div>
     </header>
+
+    <!-- 메인 화면 PDF 관리 및 검색 대상 선택 바 -->
+    <div class="px-4 py-2 bg-slate-900/75 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-slate-400 font-semibold">📚 검색 대상 PDF:</span>
+        <select id="pdfFilterSelect" onchange="onPdfFilterChange(this.value)"
+          class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-sky-300 font-semibold focus:outline-none focus:border-sky-500">
+          <option value="ALL" selected>전체 문서 통합 검색 (기본 2종 + 추가 PDF)</option>
+          <option value="직업계고등학교 실습실 안전관리 간편 매뉴얼.pdf">📘 직업계고 실습실 안전관리 간편 매뉴얼.pdf (19쪽)</option>
+          <option value="[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육.pdf">📗 [한국교육시설안전원] 연구활동종사자 실험실습실 안전교육.pdf (112쪽)</option>
+        </select>
+        <span id="mainUploadStatusBadge" class="text-[11px] text-emerald-400 hidden"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <label for="pdfUploadInput" class="cursor-pointer text-[11px] text-sky-400 hover:text-sky-300 underline">
+          + 한국어/영어 PDF 파일 추가하기 (자동 번역·색인)
+        </label>
+        <button id="clearUploadedPdfBtn" onclick="clearUploadedPdfs()" class="hidden text-[11px] text-rose-400 hover:text-rose-300 underline">
+          추가한 PDF 초기화
+        </button>
+      </div>
+    </div>
 
     <!-- 추천 질문 버튼 바 -->
     <div class="px-4 py-2.5 bg-slate-900/40 border-b border-slate-800/80 overflow-x-auto">
@@ -224,11 +251,15 @@
     <!-- 메시지 목록 -->
     <div id="chatContainer" class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5"></div>
 
-    <!-- 하단 입력창 -->
+    <!-- 하단 입력창 (PDF 첨부 버튼 포함) -->
     <div class="p-3 sm:p-4 bg-slate-900 border-t border-slate-800">
-      <form id="chatForm" onsubmit="handleChatSubmit(event)" class="max-w-4xl mx-auto flex gap-2">
+      <form id="chatForm" onsubmit="handleChatSubmit(event)" class="max-w-4xl mx-auto flex gap-2 items-center">
+        <label for="pdfUploadInput" title="검색할 PDF 파일 추가 업로드"
+          class="cursor-pointer px-3.5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs font-semibold transition shrink-0 flex items-center gap-1">
+          <span>📎 PDF 추가</span>
+        </label>
         <input id="userInput" type="text"
-          placeholder="실험·실습실 안전수칙, 보호구, 기기 조작, 응급처치 방법을 질문하세요..."
+          placeholder="질문을 입력하세요 (상단이나 왼쪽 📎 버튼으로 새 PDF를 추가해 검색할 수 있습니다)..."
           class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500" />
         <button id="sendBtn" type="submit"
           class="px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm transition shrink-0">
@@ -239,12 +270,110 @@
   </main>
 
   <script>
-    const KB = window.SAFETY_KB || [];
+    const BASE_KB = (window.SAFETY_KB || []).slice();
+    const KB = BASE_KB.slice();
     let totalIndexedPages = 117;
+    let uploadedDocsMeta = []; // [{name, pages, chunks}]
+    let activePdfFilter = 'ALL';
     let chatHistory = [];
 
     if (window.pdfjsLib) {
       window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    function onPdfFilterChange(val) {
+      activePdfFilter = val || 'ALL';
+    }
+
+    function refreshPdfFilterUI() {
+      const sel = document.getElementById('pdfFilterSelect');
+      const uploadedItemsEl = document.getElementById('uploadedPdfItems');
+      const clearBtn = document.getElementById('clearUploadedPdfBtn');
+
+      // 기본 옵션 유지 후 업로드된 PDF 옵션 재구성
+      sel.innerHTML = `
+        <option value="ALL">전체 문서 통합 검색 (기본 2종 + 추가 ${uploadedDocsMeta.length}종)</option>
+        <option value="UPLOADED_ONLY" ${uploadedDocsMeta.length === 0 ? 'disabled' : ''}>📙 업로드한 추가 PDF(${uploadedDocsMeta.length}종)에서만 검색</option>
+        <option value="직업계고등학교 실습실 안전관리 간편 매뉴얼.pdf">📘 직업계고 실습실 안전관리 간편 매뉴얼.pdf (19쪽)</option>
+        <option value="[한국교육시설안전원] 연구활동종사자 실험실습실 안전교육.pdf">📗 [한국교육시설안전원] 연구활동종사자 실험실습실 안전교육.pdf (112쪽)</option>
+      `;
+
+      uploadedItemsEl.innerHTML = '';
+      for (const meta of uploadedDocsMeta) {
+        const opt = document.createElement('option');
+        opt.value = meta.name;
+        opt.textContent = `📙 [추가됨] ${meta.name} (${meta.pages}쪽 · ${meta.chunks}청크)`;
+        sel.appendChild(opt);
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'flex items-center justify-between gap-1.5 text-sky-300 bg-sky-950/40 px-2 py-1 rounded';
+        itemDiv.innerHTML = `
+          <span class="truncate">📙 ${meta.name} (${meta.pages}쪽)</span>
+          <button onclick="removeUploadedPdf('${meta.name.replace(/'/g, "\\'")}')" class="text-rose-400 hover:text-rose-300 font-bold px-1" title="이 PDF 삭제">✕</button>
+        `;
+        uploadedItemsEl.appendChild(itemDiv);
+      }
+
+      if ([...sel.options].some(o => o.value === activePdfFilter)) {
+        sel.value = activePdfFilter;
+      } else {
+        activePdfFilter = 'ALL';
+        sel.value = 'ALL';
+      }
+
+      clearBtn.classList.toggle('hidden', uploadedDocsMeta.length === 0);
+      document.getElementById('kbCountBadge').innerText = `• 총 ${totalIndexedPages}페이지 / ${KB.length}개 청크 색인 완료`;
+    }
+
+    function removeUploadedPdf(fileName) {
+      for (let i = KB.length - 1; i >= 0; i--) {
+        if (KB[i].is_uploaded && KB[i].file_name === fileName) {
+          KB.splice(i, 1);
+        }
+      }
+      const removedMeta = uploadedDocsMeta.find(m => m.name === fileName);
+      if (removedMeta) {
+        totalIndexedPages = Math.max(117, totalIndexedPages - removedMeta.pages);
+      }
+      uploadedDocsMeta = uploadedDocsMeta.filter(m => m.name !== fileName);
+      saveUploadedToStorage();
+      refreshPdfFilterUI();
+    }
+
+    function clearUploadedPdfs() {
+      KB.length = 0;
+      BASE_KB.forEach(c => KB.push(c));
+      totalIndexedPages = 117;
+      uploadedDocsMeta = [];
+      activePdfFilter = 'ALL';
+      localStorage.removeItem('SAFETY_UPLOADED_KB_V1');
+      localStorage.removeItem('SAFETY_UPLOADED_META_V1');
+      refreshPdfFilterUI();
+      appendMessage('assistant', '🗑️ 추가 업로드했던 PDF 문서들을 목록에서 초기화했습니다. (기본 안전매뉴얼 2종은 유지됩니다)');
+    }
+
+    function saveUploadedToStorage() {
+      try {
+        const uploadedChunks = KB.filter(c => c.is_uploaded);
+        localStorage.setItem('SAFETY_UPLOADED_KB_V1', JSON.stringify(uploadedChunks));
+        localStorage.setItem('SAFETY_UPLOADED_META_V1', JSON.stringify(uploadedDocsMeta));
+      } catch (_) {
+        // 용량 초과 시 현재 세션 메모리에서만 유지
+      }
+    }
+
+    function loadUploadedFromStorage() {
+      try {
+        const savedChunks = JSON.parse(localStorage.getItem('SAFETY_UPLOADED_KB_V1') || '[]');
+        const savedMeta = JSON.parse(localStorage.getItem('SAFETY_UPLOADED_META_V1') || '[]');
+        if (Array.isArray(savedChunks) && savedChunks.length > 0) {
+          savedChunks.forEach(c => KB.push(c));
+          uploadedDocsMeta = Array.isArray(savedMeta) ? savedMeta : [];
+          const extraPages = uploadedDocsMeta.reduce((acc, m) => acc + (m.pages || 0), 0);
+          totalIndexedPages = 117 + extraPages;
+        }
+      } catch (_) {}
+      refreshPdfFilterUI();
     }
 
     // 영어 텍스트 포함 여부 감지 (알파벳 비율 체크)
@@ -271,24 +400,31 @@
       }
     }
 
-    // 영어/일반 PDF 업로드 → 텍스트 추출 → 자동 한국어 번역 → 청킹(1000/200) → KB 색인
+    // 한국어/영어 PDF 업로드 → 텍스트 추출 → (영어면 자동 한국어 번역) → 청킹(1000/200) → KB 색인
     async function handlePdfUpload(fileList) {
       if (!fileList || fileList.length === 0) return;
       const statusEl = document.getElementById('pdfUploadStatus');
-      const uploadedItemsEl = document.getElementById('uploadedPdfItems');
+      const mainBadge = document.getElementById('mainUploadStatusBadge');
       statusEl.classList.remove('hidden');
+      mainBadge.classList.remove('hidden');
 
       for (const file of fileList) {
         try {
+          // 동일 파일명 재업로드 시 기존 청크 교체
+          removeUploadedPdf(file.name);
+
           statusEl.innerText = `⏳ [${file.name}] PDF 읽는 중...`;
+          mainBadge.innerText = `⏳ [${file.name}] 읽는 중...`;
           const arrayBuffer = await file.arrayBuffer();
           const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           const numPages = pdf.numPages;
           let addedChunks = 0;
-          let translatedPreviewLines = [];
+          let translatedCount = 0;
+          let previewLines = [];
 
           for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            statusEl.innerText = `🌐 [${file.name}] ${pageNum}/${numPages}쪽 추출 및 자동 번역 중...`;
+            statusEl.innerText = `📄 [${file.name}] ${pageNum}/${numPages}쪽 텍스트 추출 및 색인 중...`;
+            mainBadge.innerText = `📄 [${file.name}] ${pageNum}/${numPages}쪽 처리 중...`;
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
             const rawText = textContent.items.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
@@ -304,13 +440,14 @@
               if (isMostlyEnglish(slice)) {
                 const koText = await translateEnglishToKorean(slice);
                 finalContent = `[자동 한국어 번역 (${file.name} - ${pageNum}쪽)]\n${koText}\n\n[영어 원문 (Original)]\n${slice}`;
-                if (translatedPreviewLines.length < 3) {
-                  translatedPreviewLines.push(`**[${pageNum}쪽 번역 요약]** ${koText.slice(0, 220)}...`);
+                translatedCount++;
+                if (previewLines.length < 3) {
+                  previewLines.push(`- **[${pageNum}쪽 번역 요약]** ${koText.slice(0, 200)}...`);
                 }
               } else {
                 finalContent = `[${file.name} - ${pageNum}쪽]\n${slice}`;
-                if (translatedPreviewLines.length < 3) {
-                  translatedPreviewLines.push(`**[${pageNum}쪽 내용 요약]** ${slice.slice(0, 220)}...`);
+                if (previewLines.length < 3) {
+                  previewLines.push(`- **[${pageNum}쪽 내용 미리보기]** ${slice.slice(0, 200)}...`);
                 }
               }
 
@@ -318,35 +455,36 @@
                 id: KB.length,
                 file_name: file.name,
                 page: pageNum,
-                content: finalContent
+                content: finalContent,
+                is_uploaded: true
               });
               addedChunks++;
             }
-            totalIndexedPages++;
           }
 
-          // 사이드바 목록 및 배지 업데이트
-          const itemDiv = document.createElement('div');
-          itemDiv.className = 'flex items-start gap-1.5 text-sky-300';
-          itemDiv.innerHTML = `<span>📙</span><span class="leading-snug">${file.name} (${numPages}쪽 · 번역 완료)</span>`;
-          uploadedItemsEl.appendChild(itemDiv);
+          totalIndexedPages += numPages;
+          uploadedDocsMeta.push({ name: file.name, pages: numPages, chunks: addedChunks });
+          // 업로드 직후 새로 추가한 PDF가 잘 검색되도록 전체 검색(또는 해당 PDF) 유지
+          saveUploadedToStorage();
+          refreshPdfFilterUI();
 
-          document.getElementById('kbCountBadge').innerText = `• 총 ${totalIndexedPages}페이지 / ${KB.length}개 청크 색인 완료`;
-          statusEl.innerText = `✅ [${file.name}] ${numPages}쪽 (${addedChunks}개 청크) 자동 번역 및 학습 완료!`;
+          statusEl.innerText = `✅ [${file.name}] ${numPages}쪽 (${addedChunks}개 청크) 추가 완료!`;
+          mainBadge.innerText = `✅ ${file.name} (${addedChunks}청크) 추가됨`;
 
-          // 채팅창에 번역 완료 및 미리보기 안내 메시지 출력
           appendMessage(
             'assistant',
-            `🎉 **새로운 PDF 문서가 자동 번역되어 챗봇 지식베이스에 추가되었습니다!**\n\n` +
-            `- **파일명:** \`${file.name}\` (총 ${numPages}쪽, ${addedChunks}개 청크 색인)\n` +
-            `- **언어 처리:** 영어 원문 자동 감지 → **한국어 번역본 + 영어 원문 동시 색인 완료**\n\n` +
-            (translatedPreviewLines.length > 0 ? `### 🌐 번역 미리보기\n${translatedPreviewLines.join('\n\n')}\n\n` : '') +
-            `이제 이 PDF의 내용도 **한국어 또는 영어**로 자유롭게 질문하실 수 있습니다!`
+            `🎉 **새로운 PDF 문서가 검색 지식베이스에 추가되었습니다!**\n\n` +
+            `- **추가된 파일:** \`${file.name}\` (총 **${numPages}쪽**, **${addedChunks}개 청크** 색인 완료)\n` +
+            `- **번역 처리:** ${translatedCount > 0 ? `영어 원문 ${translatedCount}개 청크 **한국어 자동 번역 완료**` : '한국어 원문 즉시 색인 완료'}\n` +
+            `- **검색 팁:** 상단의 **\`📚 검색 대상 PDF\`** 드롭다운에서 **\`📙 [추가됨] ${file.name}\`**을 선택하면 이 PDF 안에서만 집중 검색할 수도 있습니다!\n\n` +
+            (previewLines.length > 0 ? `### 📄 추출된 문서 미리보기\n${previewLines.join('\n')}` : '')
           );
         } catch (err) {
           statusEl.innerText = `⚠️ [${file.name}] 처리 오류: ${err.message}`;
+          mainBadge.innerText = `⚠️ 업로드 오류`;
         }
       }
+      document.getElementById('pdfUploadInput').value = '';
     }
 
     // 안전 도메인 동의어 및 Pre-Retrieval Query Rewrite 사전
@@ -437,9 +575,7 @@
         input.value = savedKey;
         updateKeyStatus(true, savedKey);
       }
-      if (KB.length > 0) {
-        document.getElementById('kbCountBadge').innerText = `• 총 117페이지 / ${KB.length}개 청크 색인 완료`;
-      }
+      loadUploadedFromStorage();
       resetWelcomeMessage();
     }
 
@@ -542,7 +678,16 @@
         }
       }
 
-      const scored = KB.map(chunk => {
+      // 선택된 PDF 필터 적용 (특정 PDF만 검색 또는 업로드한 PDF만 검색 지원)
+      let targetPool = KB;
+      if (activePdfFilter === 'UPLOADED_ONLY') {
+        targetPool = KB.filter(c => c.is_uploaded);
+      } else if (activePdfFilter !== 'ALL') {
+        targetPool = KB.filter(c => c.file_name === activePdfFilter);
+      }
+      if (targetPool.length === 0) targetPool = KB;
+
+      const scored = targetPool.map(chunk => {
         const textLower = chunk.content.toLowerCase();
         let score = 0;
         for (const tok of qTokens) {
@@ -555,7 +700,10 @@
             score += 1.2;
           }
         }
-        // 목차만 있는 페이지보다 본문 상세 설명 페이지 우대
+        // 사용자가 직접 업로드한 PDF 문서에 질문 키워드가 매칭되면 가중치 부여
+        if (chunk.is_uploaded && score > 0) {
+          score *= 1.25;
+        }
         if (chunk.content.includes('목 차') || chunk.content.includes('CONTENTS')) {
           score *= 0.45;
         }
@@ -681,16 +829,20 @@
 
       const qLower = userQuery.toLowerCase();
 
-      for (const rule of DIRECT_QA_RULES) {
-        if (rule.match(qLower)) {
-          return (
-            `### 🎯 핵심 답변\n${rule.directAnswer}\n\n` +
-            `### 💡 원리 및 상세 해설\n${rule.explanation}\n\n` +
-            `### ✅ 단계별 안전수칙 및 행동요령\n` +
-            rule.keyPoints.map(p => `- ${p}`).join('\n') +
-            `\n\n### ⚠️ 핵심 주의사항\n- ${rule.warning}\n\n` +
-            `> 📖 **출처:** [${rule.source}]`
-          );
+      // 업로드된 특정 PDF 전용 검색 중이거나 최상위 검색 결과가 업로드된 PDF인 경우에는 실제 PDF 본문에서 직접 답변 생성
+      const topIsUploaded = retrievedDocs[0]?.is_uploaded || activePdfFilter !== 'ALL';
+      if (!topIsUploaded) {
+        for (const rule of DIRECT_QA_RULES) {
+          if (rule.match(qLower)) {
+            return (
+              `### 🎯 핵심 답변\n${rule.directAnswer}\n\n` +
+              `### 💡 원리 및 상세 해설\n${rule.explanation}\n\n` +
+              `### ✅ 단계별 안전수칙 및 행동요령\n` +
+              rule.keyPoints.map(p => `- ${p}`).join('\n') +
+              `\n\n### ⚠️ 핵심 주의사항\n- ${rule.warning}\n\n` +
+              `> 📖 **출처:** [${rule.source}]`
+            );
+          }
         }
       }
 

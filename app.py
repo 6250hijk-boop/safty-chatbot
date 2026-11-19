@@ -661,6 +661,68 @@ mode_labels = {
 st.title("🦺 실험·실습실 안전관리 AI 챗봇")
 st.caption(f"현재 선택된 모드: **{mode_labels[engine_mode]}** | 왼쪽 사이드바에서 언제든 버전을 전환할 수 있습니다.")
 
+# 메인 화면 상단: PDF 추가 업로드 및 검색 대상 문서 필터
+with st.expander("📄 + 검색할 새로운 PDF 문서 추가 업로드 및 검색 범위 선택 (한국어/영어 자동 번역 지원)", expanded=False):
+    up_col1, up_col2 = st.columns([3, 2])
+    with up_col1:
+        main_uploaded_files = st.file_uploader(
+            "여기에 추가할 PDF 파일을 끌어다 놓거나 선택하세요 (여러 개 가능)",
+            type=["pdf"],
+            accept_multiple_files=True,
+            key="main_pdf_uploader",
+        )
+        if main_uploaded_files:
+            splitter = RecursiveCharacterTextSplitter(chunk_size=900, chunk_overlap=150)
+            for uf in main_uploaded_files:
+                if uf.name not in st.session_state.uploaded_pdf_names:
+                    with st.spinner(f"[{uf.name}] 추출 및 색인 중..."):
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                            tmp.write(uf.getbuffer())
+                            tmp_path = tmp.name
+                        try:
+                            loader = PyPDFLoader(tmp_path)
+                            raw_docs = loader.load()
+                            new_docs = []
+                            for d in raw_docs:
+                                pno = d.metadata.get("page", 0) + 1
+                                txt = (d.page_content or "").strip()
+                                if len(txt) < 10:
+                                    continue
+                                if is_mostly_english(txt):
+                                    ko_txt = translate_en_to_ko_free(txt)
+                                    d.page_content = (
+                                        f"[자동 한국어 번역 ({uf.name} - {pno}쪽)]\n{ko_txt}\n\n"
+                                        f"[영어 원문]\n{txt}"
+                                    )
+                                else:
+                                    d.page_content = f"[{uf.name} - {pno}쪽]\n{txt}"
+                                d.metadata["file_name"] = uf.name
+                                d.metadata["page_number"] = pno
+                                d.metadata["is_uploaded"] = True
+                                new_docs.append(d)
+                            split_new = splitter.split_documents(new_docs)
+                            st.session_state.extra_chunks.extend(split_new)
+                            st.session_state.uploaded_pdf_names.append(uf.name)
+                            st.success(f"✅ {uf.name}: {len(split_new)}개 청크가 검색 대상에 추가되었습니다!")
+                        finally:
+                            if os.path.exists(tmp_path):
+                                os.remove(tmp_path)
+    with up_col2:
+        available_doc_options = (
+            ["전체 문서 통합 검색"]
+            + (["업로드한 추가 PDF에서만 검색"] if st.session_state.uploaded_pdf_names else [])
+            + [p.name for p in PDF_FILES]
+            + st.session_state.uploaded_pdf_names
+        )
+        selected_pdf_filter = st.selectbox(
+            "📚 검색 대상 PDF 선택",
+            options=available_doc_options,
+            index=0,
+        )
+        st.caption(
+            f"현재 총 **{2 + len(st.session_state.uploaded_pdf_names)}종**의 PDF 문서가 검색 지식베이스에 등록되어 있습니다."
+        )
+
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {
@@ -709,13 +771,22 @@ if query:
 
     with st.chat_message("assistant"):
         all_chunks = get_base_chunks() + st.session_state.extra_chunks
+        if selected_pdf_filter == "업로드한 추가 PDF에서만 검색":
+            filtered_chunks = [c for c in st.session_state.extra_chunks] or all_chunks
+        elif selected_pdf_filter != "전체 문서 통합 검색":
+            filtered_chunks = [
+                c for c in all_chunks if c.metadata.get("file_name") == selected_pdf_filter
+            ] or all_chunks
+        else:
+            filtered_chunks = all_chunks
+
         history_text = format_chat_history(st.session_state.messages[:-1])
 
         # 1. Pre-Retrieval (Query Rewrite)
         search_query = local_query_rewrite(query, st.session_state.messages) if use_rewrite else query
 
-        # 2. Retrieval (로컬 하이브리드 MMR)
-        retrieved_docs = retrieve_local_mmr(all_chunks, search_query, top_k, search_type)
+        # 2. Retrieval (선택된 PDF 범위 내에서 로컬 하이브리드 MMR 검색)
+        retrieved_docs = retrieve_local_mmr(filtered_chunks, search_query, top_k, search_type)
         context_text = format_docs_compact(retrieved_docs)
 
         if use_rewrite and search_query != query:
