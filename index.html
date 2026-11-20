@@ -969,15 +969,37 @@
         html += `<div class="prose prose-invert max-w-none text-sm answer-body">${marked.parse(markdownText)}</div>`;
 
         if (meta.sources && meta.sources.length > 0) {
-          const detailsItems = meta.sources.map(s =>
-            `<div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 space-y-1">
-              <div class="font-semibold text-sky-300 text-xs">• ${s.file_name} (${s.page}쪽)</div>
+          const quickBtns = meta.sources.map(s => {
+            const p = s.page || 1;
+            const url = `./${encodeURIComponent(s.file_name)}#page=${p}`;
+            return `<a href="${url}" target="_blank"
+              class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-950/80 hover:bg-sky-800/70 border border-sky-500/40 text-sky-200 text-xs font-semibold transition"
+              title="${s.file_name} ${p}쪽 바로 열기">
+              <span>📄 ${s.file_name} (${p}쪽 바로가기 ↗)</span>
+            </a>`;
+          }).join('');
+
+          const detailsItems = meta.sources.map(s => {
+            const p = s.page || 1;
+            const url = `./${encodeURIComponent(s.file_name)}#page=${p}`;
+            return `<div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800/90 space-y-1">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="font-semibold text-sky-300 text-xs">• ${s.file_name} (${p}쪽)</div>
+                <a href="${url}" target="_blank"
+                  class="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold">
+                  📄 ${p}쪽 원본 PDF 열기 ↗
+                </a>
+              </div>
               <div class="text-slate-400 text-xs leading-relaxed">${s.content.slice(0, 260)}...</div>
-            </div>`
-          ).join('');
+            </div>`;
+          }).join('');
           html += `
-            <details class="pt-2 border-t border-slate-800 text-xs">
-              <summary class="cursor-pointer font-semibold text-slate-300 hover:text-sky-400 select-none">
+            <div class="pt-2.5 border-t border-slate-800 space-y-1.5">
+              <div class="text-xs font-semibold text-slate-300">📌 출처 PDF 해당 페이지 바로가기:</div>
+              <div class="flex flex-wrap gap-1.5">${quickBtns}</div>
+            </div>
+            <details class="pt-1 text-xs">
+              <summary class="cursor-pointer font-semibold text-slate-400 hover:text-sky-400 select-none">
                 📖 참고한 매뉴얼 출처 및 원문 보기 (${meta.sources.length}건)
               </summary>
               <div class="mt-2.5 space-y-2">${detailsItems}</div>
