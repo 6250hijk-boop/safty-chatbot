@@ -951,6 +951,28 @@
       return data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
     }
 
+    // 답변을 [간단 핵심 답변]과 [자세히 보기 상세 해설]로 분리
+    function splitBriefAndDetail(markdownText) {
+      const text = (markdownText || '').trim();
+      const detailHeaderRegex = /\n+(?=###\s*(?:💡|✅|📌|⚠️|2\.|원리|상세|단계별|매뉴얼|관련))/;
+      const match = text.match(detailHeaderRegex);
+      if (match && match.index > 0) {
+        return {
+          brief: text.slice(0, match.index).trim(),
+          detail: text.slice(match.index).trim()
+        };
+      }
+      const paragraphs = text.split(/\n\n+/);
+      if (paragraphs.length >= 3) {
+        const firstCount = paragraphs[0].startsWith('###') ? 2 : 1;
+        return {
+          brief: paragraphs.slice(0, firstCount).join('\n\n').trim(),
+          detail: paragraphs.slice(firstCount).join('\n\n').trim()
+        };
+      }
+      return { brief: text, detail: '' };
+    }
+
     function appendMessage(role, markdownText, meta = {}) {
       const container = document.getElementById('chatContainer');
       const wrap = document.createElement('div');
@@ -966,7 +988,20 @@
         if (meta.rewrittenQuery && meta.rewrittenQuery !== meta.originalQuery) {
           html += `<div class="text-xs bg-slate-950/80 border border-slate-800 px-3 py-1.5 rounded-lg text-slate-300">🔍 <b>Query Rewrite (질문 재작성):</b> <code>${meta.rewrittenQuery}</code></div>`;
         }
-        html += `<div class="prose prose-invert max-w-none text-sm answer-body">${marked.parse(markdownText)}</div>`;
+        const parts = splitBriefAndDetail(markdownText);
+        html += `<div class="prose prose-invert max-w-none text-sm answer-body">${marked.parse(parts.brief)}</div>`;
+        if (parts.detail) {
+          html += `
+            <details class="mt-2 rounded-xl bg-slate-950/90 border border-sky-500/30 overflow-hidden detail-box">
+              <summary class="cursor-pointer px-3.5 py-2.5 text-xs font-bold text-sky-300 hover:bg-sky-950/60 select-none flex items-center justify-between">
+                <span>🔍 자세히 보기 (원리 · 단계별 안전수칙 · 주의사항 펼치기)</span>
+                <span class="text-[11px] text-slate-400">클릭하여 펼치기 ▾</span>
+              </summary>
+              <div class="p-3.5 border-t border-slate-800 prose prose-invert max-w-none text-sm detail-body">
+                ${marked.parse(parts.detail)}
+              </div>
+            </details>`;
+        }
 
         if (meta.sources && meta.sources.length > 0) {
           const quickBtns = meta.sources.map(s => {
@@ -1014,19 +1049,36 @@
       return bubble;
     }
 
-    // 스트리밍(타이핑) 효과 출력
+    // 스트리밍(타이핑) 효과 출력 (간단 핵심 답변만 스트리밍하고 상세 해설은 '🔍 자세히 보기' 토글에 배치)
     async function streamMarkdownIntoBubble(bubble, fullMarkdown) {
       const bodyEl = bubble.querySelector('.answer-body');
       const container = document.getElementById('chatContainer');
       if (!bodyEl) return;
 
-      const step = Math.max(12, Math.floor(fullMarkdown.length / 35));
-      for (let i = step; i < fullMarkdown.length; i += step) {
-        bodyEl.innerHTML = marked.parse(fullMarkdown.slice(0, i));
+      const parts = splitBriefAndDetail(fullMarkdown);
+      const briefText = parts.brief;
+
+      const step = Math.max(10, Math.floor(briefText.length / 25));
+      for (let i = step; i < briefText.length; i += step) {
+        bodyEl.innerHTML = marked.parse(briefText.slice(0, i));
         container.scrollTop = container.scrollHeight;
-        await new Promise(r => setTimeout(r, 18));
+        await new Promise(r => setTimeout(r, 15));
       }
-      bodyEl.innerHTML = marked.parse(fullMarkdown);
+      bodyEl.innerHTML = marked.parse(briefText);
+
+      if (parts.detail) {
+        const detailWrapper = document.createElement('details');
+        detailWrapper.className = 'mt-2 rounded-xl bg-slate-950/90 border border-sky-500/30 overflow-hidden';
+        detailWrapper.innerHTML = `
+          <summary class="cursor-pointer px-3.5 py-2.5 text-xs font-bold text-sky-300 hover:bg-sky-950/60 select-none flex items-center justify-between">
+            <span>🔍 자세히 보기 (원리 · 단계별 안전수칙 · 주의사항 펼치기)</span>
+            <span class="text-[11px] text-slate-400">클릭하여 펼치기 ▾</span>
+          </summary>
+          <div class="p-3.5 border-t border-slate-800 prose prose-invert max-w-none text-sm">
+            ${marked.parse(parts.detail)}
+          </div>`;
+        bodyEl.insertAdjacentElement('afterend', detailWrapper);
+      }
       container.scrollTop = container.scrollHeight;
     }
 
